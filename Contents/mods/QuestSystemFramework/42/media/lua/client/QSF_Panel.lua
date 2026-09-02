@@ -108,8 +108,8 @@ function QSF_Panel:createChildren()
     self.list = NIVirtualScrollView:new(PAD + 1, listY + 1, listW - 2, listHeight)
     self.list:initialise()
     self.list:instantiate()
-    -- setOnCreateItem has to come after instantiate: createChildren already ran
-    -- initializePool once with no callback set, and it quietly did nothing.
+    -- setOnCreateItem after instantiate: createChildren already ran initializePool once
+    -- with no callback set and quietly did nothing.
     self.list:setOnCreateItem(function()
         local row = QSF_Row:new(0, 0, self.list:getWidth(), QSF_Row.HEIGHT, self)
         -- the pool calls initialise for us but not instantiate.
@@ -175,10 +175,6 @@ function QSF_Panel:onReload()
     QSF_ClientState.reload()
 end
 
--- ---------------------------------------------------------------------------
--- building the list
--- ---------------------------------------------------------------------------
-
 function QSF_Panel:buildRows()
     local rows = {}
     local counts = QSF_ClientState.counts()
@@ -194,10 +190,9 @@ function QSF_Panel:buildRows()
         elseif self.tab == "done" then
             wanted = status == "done"
         else
-            -- available holds everything not started, plus a repeatable that has come
-            -- off cooldown and can be taken again.
+            -- not started, plus a repeatable back off cooldown.
             wanted = status ~= "active" and (status ~= "done" or ok)
-            -- a hidden prereq means the quest should not even hint at itself yet.
+            -- hidden means it should not even hint at itself yet.
             if wanted and not ok and def.prereqs and def.prereqs.hidden then wanted = false end
         end
 
@@ -246,8 +241,7 @@ function QSF_Panel:refresh()
     -- that leaves the row count alone has to be forced through.
     if self.list then self.list:setDataSource(self.rows, true) end
 
-    -- a selection that fell out of the current tab would leave the pane showing
-    -- something the list no longer offers.
+    -- a selection that fell out of the tab would leave the pane showing a missing row.
     if self.selected then
         local stillThere = false
         for _, row in ipairs(self.rows) do
@@ -288,8 +282,7 @@ function QSF_Panel:updateAction()
         return
     end
 
-    -- the same predicate the row used to grey itself, so the button and the list can
-    -- never disagree about whether this is allowed.
+    -- the same predicate the row greyed itself with.
     local ok = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
     self.action:setTitle(getText("IGUI_QSF_Accept"))
     self.action:setEnable(ok == true)
@@ -305,7 +298,6 @@ function QSF_Panel:prerender()
     self:drawRectBorder(PAD, listY, listW, footerY - listY - GAP,
         QSF_Theme.COL_FRAME.a, QSF_Theme.COL_FRAME.r, QSF_Theme.COL_FRAME.g, QSF_Theme.COL_FRAME.b)
 
-    -- the divider between the two columns.
     self:drawRect(PAD + listW + GAP / 2, listY, 1, footerY - listY - GAP,
         QSF_Theme.COL_FRAME.a, QSF_Theme.COL_FRAME.r, QSF_Theme.COL_FRAME.g, QSF_Theme.COL_FRAME.b)
 
@@ -313,8 +305,7 @@ function QSF_Panel:prerender()
     self.tabAvailable.selected = self.tab == "available"
     self.tabDone.selected = self.tab == "done"
 
-    -- access level is a java call and prerender runs every frame, so it is asked
-    -- once and kept. it cannot change mid-session without a reconnect anyway.
+    -- a java call in a per-frame prerender, and it cannot change without a reconnect.
     if self.reload then
         if self.isAdmin == nil then self.isAdmin = QSF.isAdmin(self.player) end
         self.reload:setVisible(self.isAdmin)
@@ -335,9 +326,8 @@ end
 function QSF_Panel:update()
     ISCollapsableWindow.update(self)
 
-    -- the cache bumps a revision whenever the server says something, and the poll bumps
-    -- it when a count moves. the tick floor is only a backstop for anything that changes
-    -- without either.
+    -- the cache bumps a revision on anything from the server and the poll bumps it on a
+    -- count change; the tick floor only backstops whatever moves without either.
     self.ticks = self.ticks + 1
 
     if self.revision ~= QSF_ClientState.revision then

@@ -6,10 +6,6 @@ require "QSF_Core"
 require "QSF_Net"
 require "QSF_Rules"
 
--- the client's cache of what the server told it. plain lua tables, never mod data: this
--- side has no authority, so nothing here is worth saving and everything here is replaced
--- the moment the server says otherwise.
-
 QSF = QSF or {}
 QSF_ClientState = QSF_ClientState or {}
 
@@ -44,8 +40,7 @@ end
 
 local handlers = {}
 
--- definitions arrive in pieces because a full set is more text than one command should
--- carry. they are collected into a staging table so a half-delivered set never shows.
+-- staged, so a half-delivered set never reaches the window.
 function handlers.defs(args)
     if not args then return end
 
@@ -96,10 +91,6 @@ function QSF_ClientState.onCommand(module, command, args)
     if not ok then QSF.warn("client command " .. tostring(command) .. " failed: " .. tostring(err)) end
 end
 
--- ---------------------------------------------------------------------------
--- convenience the ui reads
--- ---------------------------------------------------------------------------
-
 function QSF_ClientState.record(key)
     return QSF_ClientState.state[key]
 end
@@ -126,8 +117,7 @@ end
 
 Events.OnServerCommand.Add(QSF_ClientState.onCommand)
 
--- asked for on OnCreatePlayer rather than OnGameStart, because the handshake needs a
--- player object to exist on both ends.
+-- OnCreatePlayer, not OnGameStart: the handshake needs a player on both ends.
 Events.OnCreatePlayer.Add(function(playerNum)
     if playerNum ~= 0 then return end
     QSF_Net.toServer("hello", {})

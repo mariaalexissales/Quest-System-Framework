@@ -6,10 +6,6 @@ require "QSF_Core"
 require "QSF_Json"
 require "QSF_Schema"
 
--- reads every .json under Zomboid/Lua/QuestFramework/ and turns it into the definition
--- table the rest of the mod reads. runs only on the authority: in multiplayer the server
--- owns the files and pushes the result to clients, who never touch disk.
-
 if not QSF.isAuthority() then return end
 
 QSF = QSF or {}
@@ -19,8 +15,7 @@ QSF_Defs.all = QSF_Defs.all or {}
 QSF_Defs.ordered = QSF_Defs.ordered or {}
 QSF_Defs.loaded = false
 
--- if directory listing gives us nothing, this filename always works, so an admin who
--- hits an unexpected listing behaviour still has a way in.
+-- if the listing gives us nothing, this name always works.
 local FALLBACK = "quests.json"
 
 function QSF_Defs.listFiles()
@@ -31,8 +26,7 @@ function QSF_Defs.listFiles()
         for i = 0, listing:size() - 1 do
             local entry = tostring(listing:get(i))
             if entry:lower():match("%.json$") then
-                -- the listing may hand back a bare name or a path; normalise to a path
-                -- relative to Zomboid/Lua/ either way.
+                -- the listing hands back either a bare name or a path.
                 if entry:find("[/\\]") then
                     files[#files + 1] = entry
                 else
@@ -50,8 +44,7 @@ function QSF_Defs.listFiles()
     return files
 end
 
--- returns the file contents, or nil plus a reason. a missing file shows up as either a
--- nil reader or a reader whose first line is nil depending on the build, so both count.
+-- a missing file is either a nil reader or one whose first line is nil, build depending.
 function QSF_Defs.readFile(path)
     local ok, reader = pcall(function() return getFileReader(path, false) end)
     if not ok or not reader then return nil, "could not open" end
@@ -73,8 +66,7 @@ function QSF_Defs.readFile(path)
     return table.concat(lines, "\n")
 end
 
--- admins write both a bare array and an object with a quests key, and rejecting either
--- is a support burden for no gain.
+-- admins write both a bare array and an object with a quests key.
 local function QSF_questList(decoded)
     if type(decoded) ~= "table" then return nil end
     if decoded.quests ~= nil then
@@ -153,7 +145,7 @@ function QSF_Defs.load()
     return defs
 end
 
--- a stable order, so the list does not reshuffle between openings. pairs() alone would.
+-- pairs() alone would reshuffle the list between openings.
 function QSF_Defs.sort(defs)
     local ordered = {}
     for _, def in pairs(defs) do ordered[#ordered + 1] = def end

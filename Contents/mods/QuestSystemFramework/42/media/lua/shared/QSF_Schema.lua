@@ -4,19 +4,14 @@
 
 require "QSF_Core"
 
--- turns one decoded json object into a definition the rest of the mod can trust, or
--- into a list of complaints. nothing in here raises: an admin's typo costs them that one
--- quest and a line in the log, never the server.
-
 QSF = QSF or {}
 QSF_Schema = QSF_Schema or {}
 
 local VALID_KEY = "^[%w_%.%-]+$"
 local MAX_COLLECT_TYPES = 16
 
--- items and perks are looked up through the engine, which is not guaranteed to be ready
--- at every point we might load. a failed lookup is treated as "cannot say", not "invalid",
--- so a load that runs early does not silently delete every objective.
+-- a lookup that throws means the engine is not ready yet, which is "cannot say" rather
+-- than "invalid" - otherwise an early load would silently delete every objective.
 local function QSF_itemExists(fullType)
     local ok, item = pcall(function() return getScriptManager():FindItem(fullType) end)
     if not ok then return true end
@@ -29,9 +24,8 @@ local function QSF_perkFromName(name)
     return perk, false
 end
 
--- djb2 over the objective descriptors. this is not security, it is a cheap way to notice
--- that an admin reordered or retuned the objectives so stored progress no longer lines up
--- with the ordinals it was recorded against.
+-- djb2 over the objective descriptors, to notice a reorder or retune that would leave
+-- stored progress lined up against the wrong ordinals.
 function QSF_Schema.signature(def)
     local parts = {}
     for i, obj in ipairs(def.objectives or {}) do
@@ -48,8 +42,7 @@ function QSF_Schema.signature(def)
     return string.format("%x", hash)
 end
 
--- location accepts a name, an explicit false meaning anywhere, a box, a radius, or a
--- union of those. returns the cleaned value plus an error string.
+-- a name, false for anywhere, a box, a radius, or a union. returns value plus an error.
 local function QSF_normaliseLocation(loc, where)
     if loc == nil then return nil, nil end
     if loc == false then return false, nil end
@@ -85,8 +78,7 @@ local function QSF_normaliseLocation(loc, where)
         return { x = loc.x, y = loc.y, radius = loc.radius, z = loc.z }, nil
     end
 
-    -- w/h and width/height both read naturally, so accept either rather than making the
-    -- admin guess which one we wanted.
+    -- both spellings read naturally, so take either.
     local w = loc.w or loc.width
     local h = loc.h or loc.height
     if type(w) ~= "number" or type(h) ~= "number" or w <= 0 or h <= 0 then
@@ -122,8 +114,7 @@ local function QSF_normaliseObjective(raw, index, questLocation, errors, key)
         return nil
     end
 
-    -- an absent location inherits the quest's; an explicit false clears it. json has no
-    -- way to say "absent" distinctly from "not written", so false is the escape hatch.
+    -- absent inherits the quest's, false clears it. json cannot say "absent" any other way.
     if raw.location == nil then
         location = questLocation
     elseif location == false then
@@ -185,8 +176,7 @@ local function QSF_normalisePrereqs(raw, errors, key)
             for perkName, level in pairs(raw.skills) do
                 local perk, unavailable = QSF_perkFromName(perkName)
                 if not perk and not unavailable then
-                    -- the traps are worth naming outright; an admin writing Carpentry has
-                    -- no way to guess the engine calls it Woodwork.
+                    -- an admin writing Carpentry has no way to guess it is Woodwork.
                     errors[#errors + 1] = key .. ": unknown perk " .. tostring(perkName)
                         .. " (Carpentry is Woodwork, Foraging is PlantScavenging, First Aid is Doctor)"
                 elseif type(level) ~= "number" then
@@ -264,8 +254,7 @@ local function QSF_normaliseRepeatable(raw, errors, key)
         return nil
     end
 
-    -- zero means no limit in both fields, which keeps the absent case and the explicit
-    -- unlimited case the same shape downstream.
+    -- zero is no limit in both, so absent and explicitly-unlimited share a shape.
     return {
         cooldownHours = math.max(0, tonumber(raw.cooldownHours) or 0),
         maxTurnins = math.max(0, math.floor(tonumber(raw.maxTurnins) or 0)),
@@ -303,8 +292,7 @@ function QSF_Schema.normalise(raw, sourceFile)
     local objectives = {}
     for i, rawObj in ipairs(raw.objectives) do
         local obj = QSF_normaliseObjective(rawObj, i, questLocation, errors, key)
-        -- a dropped objective would silently renumber every later ordinal, and stored
-        -- progress is keyed on those, so the whole quest goes rather than half of it.
+        -- dropping one would renumber every later ordinal, and progress is keyed on those.
         if not obj then
             return nil, errors
         end
@@ -337,8 +325,7 @@ function QSF_Schema.normalise(raw, sourceFile)
         source = sourceFile,
     }
 
-    -- auto-completing a quest that eats the items would confiscate them the instant the
-    -- last one is picked up, with no prompt. the player presses the button instead.
+    -- otherwise the items go the instant the last one is picked up, with no prompt.
     if consumes and def.autoComplete then
         def.autoComplete = false
         errors[#errors + 1] = key .. ": has consuming collect objectives, so autoComplete was forced off"
@@ -348,8 +335,8 @@ function QSF_Schema.normalise(raw, sourceFile)
     return def, errors
 end
 
--- run once over the whole loaded set. catches the two mistakes that are invisible in a
--- single file: a prereq naming a quest nobody defined, and a prereq cycle.
+-- the two mistakes invisible in a single file: a prereq naming a quest nobody defined,
+-- and a prereq cycle.
 function QSF_Schema.crossValidate(defs)
     local errors = {}
 
@@ -361,8 +348,7 @@ function QSF_Schema.crossValidate(defs)
         end
     end
 
-    -- a cycle makes every quest in it permanently unavailable with no visible symptom,
-    -- so it is worth the depth-first walk to name it at load instead of never.
+    -- a cycle leaves every quest in it permanently unavailable with no visible symptom.
     local UNVISITED, OPEN, CLOSED = 0, 1, 2
     local mark = {}
     for key in pairs(defs) do mark[key] = UNVISITED end

@@ -2,10 +2,6 @@
 --ESTRAL--
 ----------
 
--- one palette for the whole window. rows and buttons share the disabled entry on purpose:
--- a locked quest and a button you cannot press are the same idea, and they should look
--- like it.
-
 QSF = QSF or {}
 QSF_Theme = QSF_Theme or {}
 
@@ -52,8 +48,7 @@ function QSF_Theme.textures()
     return TEXTURES
 end
 
--- NeatUI may not have loaded, and it fails silently when it has not, so every call site
--- goes through here rather than assuming the helper exists.
+-- NeatUI fails silently when it has not loaded, so nothing calls truncateText directly.
 function QSF_Theme.truncate(text, maxWidth, font)
     if NeatTool and type(NeatTool.truncateText) == "function" then
         return NeatTool.truncateText(text, maxWidth, font or UIFont.Small)

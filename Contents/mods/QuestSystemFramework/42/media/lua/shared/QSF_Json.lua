@@ -2,12 +2,9 @@
 --ESTRAL--
 ----------
 
--- project zomboid ships no lua json parser, so this is ours. it is deliberately strict
--- about structure and forgiving about the three things admins actually get wrong in a
--- hand-written file: a byte order mark from notepad, // comments, and a trailing comma.
---
--- decode never raises. it returns nil plus a message carrying a line number, because the
--- admin reading the server log is the one who has to go and fix the file.
+-- project zomboid ships no lua json parser. strict about structure, forgiving about the
+-- three things a hand-written file always has wrong: a notepad bom, // comments, and a
+-- trailing comma.
 
 QSF = QSF or {}
 QSF_Json = QSF_Json or {}
@@ -17,8 +14,7 @@ local ESCAPES = {
     f = "\f", n = "\n", r = "\r", t = "\t",
 }
 
--- kahlua's string.char takes one byte at a time, so codepoints get encoded by hand.
--- anything above the basic plane is rare enough in quest text to fold to a question mark.
+-- kahlua's string.char takes one byte at a time. above the basic plane folds to a ?.
 local function QSF_utf8(code)
     if code < 0x80 then
         return string.char(code)
@@ -32,9 +28,9 @@ local function QSF_utf8(code)
     return "?"
 end
 
--- a character scan rather than a gsub, because a naive comment strip eats the double
--- slash in any url an admin puts in a description, and a naive comma strip eats commas
--- in prose. tracking the in-string state is the only way to tell code from content.
+-- a character scan, not a gsub: a naive comment strip eats the slashes in any url in a
+-- description, and a naive comma strip eats commas in prose. only the in-string state
+-- tells code from content.
 local function QSF_prepass(text)
     -- notepad writes a bom and the parser would choke on it as a stray character.
     if text:sub(1, 3) == "\239\187\191" then text = text:sub(4) end
@@ -60,14 +56,14 @@ local function QSF_prepass(text)
             out[#out + 1] = c
             i = i + 1
         elseif c == "/" and text:sub(i + 1, i + 1) == "/" then
-            -- line comment. the newline is kept so error line numbers stay honest.
+            -- the newline is kept so reported line numbers still match the file.
             local stop = text:find("\n", i, true)
             if not stop then break end
             i = stop
         elseif c == "/" and text:sub(i + 1, i + 1) == "*" then
             local stop = text:find("*/", i + 2, true)
             if not stop then break end
-            -- replaced by its own newlines, again to keep line numbers honest.
+            -- replaced by its own newlines, again to keep line numbers matching.
             for _ in text:sub(i, stop + 1):gmatch("\n") do out[#out + 1] = "\n" end
             i = stop + 2
         elseif c == "," then
@@ -164,8 +160,7 @@ function Parser:parseArray()
 
     while true do
         local value = self:parseValue()
-        -- a null element is a mistake in quest json, and compacting beats leaving a hole
-        -- that would break every ipairs and length check downstream.
+        -- compacting beats a hole that breaks every ipairs and # downstream.
         if value ~= nil then out[#out + 1] = value end
 
         self:skip()
@@ -197,8 +192,7 @@ function Parser:parseObject()
         if self:peek() ~= ":" then self:fail("expected a colon after key " .. key) end
         self.pos = self.pos + 1
 
-        -- null lands here as nil, so the key is simply absent. that is exactly what a
-        -- written-out null should mean for us - fall back to the generated default.
+        -- null decodes to nil, so the key is absent and the default applies.
         out[key] = self:parseValue()
 
         self:skip()
@@ -240,7 +234,7 @@ function Parser:parseValue()
     self:fail("unexpected character " .. c)
 end
 
--- returns the decoded value, or nil plus a message. never raises.
+-- returns the value, or nil plus a message. never raises.
 function QSF_Json.decode(text)
     if type(text) ~= "string" or text:match("^%s*$") then
         return nil, "file is empty"

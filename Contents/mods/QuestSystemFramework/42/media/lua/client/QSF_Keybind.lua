@@ -4,9 +4,6 @@
 
 require "QSF_Panel"
 
--- a key is the entry point that works before any sidebar art exists, and it stays as the
--- one players can rebind if another mod takes the icon slot.
-
 local QSF_KEY = Keyboard.KEY_J
 
 keyBinding = keyBinding or {}

@@ -4,13 +4,6 @@
 
 require "QSF_Core"
 
--- the only file that knows whether there is a server on the other end of the wire.
---
--- in singleplayer there is no remote, so a send is just a function call into the handler
--- that would have received it. that means singleplayer runs the identical accept, claim
--- and reward code the dedicated server runs, and every rule gets exercised on every
--- launch rather than only when somebody hosts.
-
 QSF = QSF or {}
 QSF_Net = QSF_Net or {}
 
@@ -18,8 +11,8 @@ function QSF_Net.hasRemoteServer()
     return QSF.hasRemoteServer()
 end
 
--- handlers are looked up at call time, never cached. shared/ loads before client/ and
--- server/, so at this file's load time neither dispatcher exists yet.
+-- looked up at call time: shared/ loads before client/ and server/, so neither dispatcher
+-- exists yet when this file runs.
 local function QSF_serverHandler(command)
     return QSF_Commands and QSF_Commands.handlers and QSF_Commands.handlers[command]
 end
@@ -28,6 +21,8 @@ local function QSF_clientHandler()
     return QSF_ClientState and QSF_ClientState.onCommand
 end
 
+-- with no remote server the send is a direct call into the handler that would have
+-- received it, so singleplayer runs the same accept, claim and reward code the server does.
 function QSF_Net.toServer(command, args)
     args = args or {}
 
@@ -42,8 +37,6 @@ function QSF_Net.toServer(command, args)
         return
     end
 
-    -- loopback still goes through pcall, so a bug in a handler cannot take down the
-    -- caller's frame the way a raw call would.
     local ok, err = pcall(handler, getPlayer(), args)
     if not ok then QSF.warn("server handler " .. tostring(command) .. " failed: " .. tostring(err)) end
 end

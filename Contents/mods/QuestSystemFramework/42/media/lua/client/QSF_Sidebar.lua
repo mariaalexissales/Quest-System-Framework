@@ -32,14 +32,10 @@ local function QSF_isCurrentPanel(panel)
     return true
 end
 
--- cell 0 is the vanilla crafting button; anything already flying out of it claims the
--- cells after. measured every frame rather than assumed, so load order against other
--- sidebar mods does not matter.
---
--- Bundle Up! is called out by name because it is the one mod guaranteed to be sitting in
--- the cell we would otherwise take, and both are mine. anything else that measures the
--- crafting popup the same way will still land on us, which is the general problem with
--- this sidebar and not something a single mod can fix.
+-- cell 0 is the vanilla crafting button and anything flying out of it claims the cells
+-- after, measured every frame so load order does not matter. Bundle Up! is named outright
+-- because it measures the crafting popup exactly the way this does and would otherwise
+-- land on the same cell.
 local function QSF_cellOffset(panel, textureWidth)
     local cells = 1
 
@@ -103,8 +99,6 @@ end
 function QSF_Popup:onMouseDown(x, y)
     self:hideTooltip()
 
-    -- the same path the keybind uses, and the same close() the title bar's X calls, so
-    -- the window position is remembered however it was shut.
     QSF.togglePanel(self.chr)
 
     return true

@@ -39,8 +39,7 @@ end
 
 function QSF_Row:onMouseDown(x, y)
     if not self.row or not self.panel then return end
-    -- a locked quest still shows its detail pane, because that is where the player finds
-    -- out what is blocking it. it just cannot be accepted.
+    -- a locked quest still opens: the pane is where the blocking reason is written.
     self.panel:select(self.row.key)
 end
 
@@ -96,8 +95,7 @@ function QSF_Row:render()
         self:drawText(sub, x, LINE_TWO, sr, sg, sb, 1, UIFont.Small)
     end
 
-    -- only active quests get a bar; on anything else it would either be empty or full
-    -- and would say nothing.
+    -- on anything else the bar would be stuck empty or full and say nothing.
     if row.status == "active" and row.progress and row.progress > 0 then
         local width = math.floor((self.width - ACCENT) * math.min(1, row.progress))
         self:drawRect(ACCENT, self.height - BAR_HEIGHT, width, BAR_HEIGHT,
