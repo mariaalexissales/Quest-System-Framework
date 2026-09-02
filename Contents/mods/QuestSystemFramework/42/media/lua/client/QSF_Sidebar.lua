@@ -103,11 +103,9 @@ end
 function QSF_Popup:onMouseDown(x, y)
     self:hideTooltip()
 
-    if QSF.isWindowOpen(self.playerNum) then
-        QSF.getWindow(self.playerNum):onCloseClick()
-    else
-        QSF.openPanel(self.chr)
-    end
+    -- the same path the keybind uses, and the same close() the title bar's X calls, so
+    -- the window position is remembered however it was shut.
+    QSF.togglePanel(self.chr)
 
     return true
 end
