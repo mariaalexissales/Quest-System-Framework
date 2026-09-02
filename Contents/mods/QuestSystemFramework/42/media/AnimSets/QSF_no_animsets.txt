@@ -1,0 +1,1 @@
+Placeholder so the dedicated server's media scan finds this folder. Not used by the mod.

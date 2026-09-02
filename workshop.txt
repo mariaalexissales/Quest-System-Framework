@@ -1,0 +1,32 @@
+version=1
+id=
+title=Quest System Framework
+description=[h1]Quest System Framework[/h1]
+description=[h2]Built for B42.20+[/h2]
+description=[b]Write quests as JSON. No Lua, no repacking, no restart to add one.[/b]
+description=
+description=Drop a .json file into [b]Zomboid/Lua/QuestFramework/[/b] and it is a quest. Players get a quest log with In Progress, Available and Completed tabs, live objective counters, and rewards that land straight in their inventory.
+description=
+description=[hr][/hr]
+description=[h2]What Admins Get[/h2]
+description=[b]Objectives:[/b] kill N zombies, or collect N of an item - each optionally scoped to a location.
+description=[b]Locations:[/b] every vanilla region by name, plus built-in boxes for the towns the game never defined - Ekron, Fallas Lake, Brandenburg, Echo Creek and Irvington. Named buildings work too, and you can always write a raw coordinate box or radius.
+description=[b]Prerequisites:[/b] gate a quest behind other quests, skill levels, zombie kills or days survived. Locked quests show greyed out with the missing requirement spelled out, so players know what to chase.
+description=[b]Rewards:[/b] items and XP.
+description=[b]Repeatables:[/b] with cooldowns and turn-in caps.
+description=
+description=Malformed JSON costs you that one quest and a line in the log - never the server.
+description=
+description=[hr][/hr]
+description=[h2]Multiplayer[/h2]
+description=Server-authoritative. The server reads the JSON, owns every player's progress, and validates every accept and turn-in - clients need no files of their own. An in-panel Reload button pushes edited quests to everyone live, and only admins can press it.
+description=
+description=[hr][/hr]
+description=[b][u]Requires [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3508537032]NeatUI Framework[/url][/u][/b] by Rocco & Afyrmo - subscribe to it as well or the panel will not load, and it fails silently, so you would get no window and no clue why.
+description=
+description=[hr][/hr]
+description=[h2]Support the Mod[/h2]
+description=[url=https://ko-fi.com/estralexe]Ko-fi[/url]
+description=[url=https://www.twitch.tv/itsestral]Twitch[/url]
+tags=Build 42;Framework;Multiplayer;Misc;WIP
+visibility=public

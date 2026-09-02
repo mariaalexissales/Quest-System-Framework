@@ -1,0 +1,7 @@
+name=Quest System Framework
+id=QuestSystemFramework
+author=Estral
+description=Admin-authored JSON quests with a server-authoritative tracker - by Estral
+poster=poster.png
+require=NeatUI_Framework
+versionMin=42.20
