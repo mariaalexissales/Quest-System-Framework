@@ -2,8 +2,8 @@
   "quests": [
     {
       "key": "intro_supplies",
-      "title": "First Things First",
-      "description": "You are not going to last long empty-handed. <LINE> Scrape together the basics and we will talk about the harder jobs.",
+      "title": "Something To Build With",
+      "description": "You won't last the week with what's in your pockets. <LINE> Bring me the basics and we'll talk about the work that pays.",
       "order": 10,
       "objectives": [
         { "type": "collect", "item": "Base.Nails", "count": 10 },
@@ -18,8 +18,8 @@
 
     {
       "key": "muldraugh_thinning",
-      "title": "Thinning the Herd",
-      "description": "Muldraugh is thick with them. <LINE> Make a dent and I will see you right.",
+      "title": "Thinning The Herd",
+      "description": "There's too many of them on the main road to get anything done. <LINE> Make a dent and I'll see you right.",
       "order": 20,
       "location": "Muldraugh",
       "prereqs": {
@@ -39,7 +39,7 @@
     {
       "key": "ekron_cleanup",
       "title": "Clearing Ekron",
-      "description": "Nobody has been out to Ekron since it went bad. <LINE> Go and find out why.",
+      "description": "Nobody's been out to Ekron since it turned, and the two who tried didn't come back. <LINE> Find out what's still in there. Bring screws, I'm short.",
       "order": 30,
       "location": "Ekron",
       "prereqs": {
@@ -62,7 +62,7 @@
     {
       "key": "mall_run",
       "title": "The Mall Run",
-      "description": "Crossroads Mall. In, out, do not linger.",
+      "description": "Crossroads. In, out, don't get clever. <LINE> It's a good haul if you're quick and a bad way to go if you're not.",
       "order": 40,
       "location": "CrossRoadsMall",
       "prereqs": {
@@ -82,7 +82,7 @@
     {
       "key": "trainyard_scrap",
       "title": "Trainyard Scrap",
-      "description": "The Muldraugh trainyard is full of metal nobody is coming back for.",
+      "description": "There's more metal sat in that yard than we could use in a year, and nobody's coming back for it. <LINE> Clear the ones wandering it and it's ours.",
       "order": 50,
       "location": { "x": 11651, "y": 9890, "radius": 120 },
       "prereqs": {
