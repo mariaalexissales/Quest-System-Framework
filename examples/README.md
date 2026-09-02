@@ -1,16 +1,27 @@
 # Writing quests
 
-Drop `.json` files into **`Zomboid/Lua/QuestFramework/`**. On a dedicated server that is the
-*server's* folder — clients need nothing. Any number of files; each holds any number of quests.
+Quests are .json files in `Zomboid/Lua/QuestFramework/`. On a server that's the server's folder,
+not the players'. As many files as you like, as many quests per file as you like.
 
-Reload without restarting: open the quest log and press **Reload** (admins only). The console
-prints a summary like `[QSF] 2 files, 6 quests loaded, 0 rejected, 1 warnings`. A broken file costs
-you that file and a log line, never the server.
+To reload without restarting, open the quest log and hit Reload. Admins only. The console prints
+what it found:
 
-A file is either a bare array or an object with a `quests` key — both work. `//` comments, trailing
-commas and a Notepad byte-order-mark are all tolerated.
+```
+[QSF] 2 files, 6 quests loaded, 0 rejected, 1 warnings
+```
 
-## Minimal quest
+A file that won't parse costs you that file and a line in the log. It never takes the server down.
+
+Either shape works, so use whichever you like:
+
+```json
+[ { "key": "..." } ]
+{ "quests": [ { "key": "..." } ] }
+```
+
+Notepad's byte-order mark, `//` comments and trailing commas are all fine.
+
+## A quest
 
 ```json
 {
@@ -27,34 +38,42 @@ commas and a Notepad byte-order-mark are all tolerated.
 }
 ```
 
-## Every field
+`key`, `title` and `objectives` are the only things you have to write. Everything else has a
+default.
 
-| Field | Required | Notes |
-|---|---|---|
-| `key` | yes | Unique. Letters, digits, `_`, `.`, `-`. This is the save key — renaming it loses progress. |
-| `title` | yes | Shown in the list. |
-| `description` | no | Supports `<LINE>` for a line break and `<RGB:r,g,b>` for colour. |
-| `order` | no | Sort weight in the list, default `100`. |
-| `location` | no | Default location for every objective. See below. |
-| `prereqs` | no | See below. |
-| `objectives` | yes | At least one. Always **all** required. |
-| `rewards` | no | `items` and `xp`. |
-| `repeatable` | no | `false` (default), `true`, or `{ "cooldownHours": n, "maxTurnins": n }`. `0` means no limit. |
-| `autoComplete` | no | Default `true`. Forced to `false` when any objective consumes items. |
+## The rest of it
 
-### Objectives
+`key` is unique, and it's what progress is saved against, so renaming one wipes anybody's progress
+on it. Letters, digits, `_`, `.` and `-`.
+
+`description` takes `<LINE>` for a break and `<RGB:r,g,b>` for colour.
+
+`order` sorts the list, default 100.
+
+`repeatable` is `false`, `true`, or `{ "cooldownHours": 72, "maxTurnins": 3 }`. Zero means no
+limit either way.
+
+`autoComplete` defaults to true. It's forced off when a quest consumes items, so nobody has their
+nails taken the second they pick the last one up.
+
+## Objectives
 
 ```json
 { "type": "kill",    "count": 25, "location": "Ekron", "label": "Cleared in Ekron" }
-{ "type": "collect", "item": "Base.Nails", "count": 20, "consume": true, "location": false }
+{ "type": "collect", "item": "Base.Nails", "count": 20, "consume": true }
 ```
 
-- `location` **omitted** inherits the quest's. `false` clears it (anywhere). A value overrides it.
-- `consume` defaults to **true** — the items are taken at turn-in. Set `false` for "just have it".
-- Items are counted recursively, so anything in a backpack counts.
-- `label` is optional; without it the item's display name or "Zombies killed" is used.
+All of them have to be done. There's no either/or yet.
 
-### Prereqs
+Leave `location` out and the objective inherits the quest's. Write `false` and it can happen
+anywhere. Write a value and it overrides.
+
+`consume` defaults to true, so the items are taken on turn-in. Set it false for "just have this on
+you". Items in a backpack count either way.
+
+Skip `label` and you get the item's name, or "Zombies killed".
+
+## Prereqs
 
 ```json
 "prereqs": {
@@ -66,24 +85,21 @@ commas and a Notepad byte-order-mark are all tolerated.
 }
 ```
 
-A quest whose prereqs are unmet shows **greyed out** in Available with the reason spelled out.
-Set `hidden: true` to omit it entirely until it unlocks.
+Anything a player hasn't met shows greyed in Available with the reason written out. `hidden` keeps
+it off the list entirely until it unlocks.
 
-**Perk names are the engine's, not the UI's.** The four that catch people out:
+Perk names are the engine's, not the ones on the character sheet. These four catch everyone:
 
-| You'd write | The engine calls it |
+| Character sheet | What you write |
 |---|---|
 | Carpentry | `Woodwork` |
 | Foraging | `PlantScavenging` |
 | First Aid | `Doctor` |
 | Lightfooted | `Lightfoot` |
 
-There is no overall character level in Project Zomboid — `kills` and `daysSurvived` are the
-closest stand-ins.
+There's no character level in this game, so `kills` and `daysSurvived` are the closest you'll get.
 
-### Locations
-
-Five forms are accepted anywhere `location` appears:
+## Locations
 
 ```json
 "location": "Louisville"
@@ -93,22 +109,20 @@ Five forms are accepted anywhere `location` appears:
 "location": false
 ```
 
-**Named regions the game defines:** `Muldraugh`, `WestPoint`, `Rosewood`, `Riverside`,
-`MarchRidge`, `Louisville`, `ValleyStation`, `Jefferson`, `LAA`, and `General` for anywhere outside
-a region.
+The game names these itself: `Muldraugh`, `WestPoint`, `Rosewood`, `Riverside`, `MarchRidge`,
+`Louisville`, `ValleyStation`, `Jefferson`, `LAA`, and `General` for anywhere outside a region.
 
-**Towns the game does *not* define as regions** — these are ours, boxed around the game's own map
-label positions, so they work anyway: `Ekron`, `FallasLake`, `Brandenburg`, `EchoCreek`,
-`Irvington`. The default boxes are 300–400 tiles across and are a first pass; write a raw box if
-you want a different footprint.
+It doesn't name these, so we box them ourselves around the labels drawn on the in-game map:
+`Ekron`, `FallasLake`, `Brandenburg`, `EchoCreek`, `Irvington`. The boxes are 300 to 400 tiles
+across. If that's not the footprint you wanted, write your own box.
 
-**Named buildings also work**, because the matcher checks every named zone at that spot — for
-example `CrossRoadsMall`, `SunstarMotel`, `KnoxBank`, `RustyRifle`, `BinkysFarm`.
+Named buildings work too, since every named zone at that spot gets checked. `CrossRoadsMall`,
+`SunstarMotel`, `KnoxBank`, `RustyRifle`, `BinkysFarm` and the rest.
 
-A box uses its **top-left corner** as `x`/`y`. A radius is in tiles. Add `"z": 0` to pin a floor;
-without it any floor matches.
+Boxes are measured from the top-left corner. Radius is in tiles. Add `"z": 0` to pin it to one
+floor, otherwise any floor counts.
 
-### Rewards
+## Rewards
 
 ```json
 "rewards": {
@@ -117,16 +131,19 @@ without it any floor matches.
 }
 ```
 
-Items go straight into the player's inventory — they are **not** weight-checked, so a large reward
-can leave the player over-encumbered.
+Items go straight into the inventory and nothing checks the weight, so a big payout can leave
+somebody overloaded.
 
-## Things that will bite you
+## Watch out for
 
-- **Item types are full types** — `Base.Nails`, not `Nails`. An unknown item is rejected at load
-  with a log line naming it.
-- **Reordering an objective resets that quest's progress** for anyone mid-way through it, with a
-  warning in the log. Progress is stored per objective position. Adding a quest is always safe;
-  editing a live one is not.
-- **A prereq cycle** (A needs B, B needs A) is caught at load and logged. Without the check those
-  quests would be permanently unavailable with no visible symptom.
-- **Kills count where the zombie died**, not where the player stood.
+Item types are full types. `Base.Nails`, not `Nails`. Anything the game doesn't recognise gets
+named in the log and dropped.
+
+Reordering the objectives on a live quest resets progress for anyone part-way through it, and says
+so in the log. Progress is stored against objective position. Adding new quests is always safe.
+Editing one people are already doing is not.
+
+A prereq loop, where A needs B and B needs A, gets caught at load. Left alone it would make both
+quests permanently unavailable and nothing would ever tell you why.
+
+Kills count where the zombie died, not where the player was standing.
