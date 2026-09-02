@@ -1,0 +1,101 @@
+{
+  "quests": [
+    {
+      "key": "intro_supplies",
+      "title": "First Things First",
+      "description": "You are not going to last long empty-handed. <LINE> Scrape together the basics and we will talk about the harder jobs.",
+      "order": 10,
+      "objectives": [
+        { "type": "collect", "item": "Base.Nails", "count": 10 },
+        { "type": "collect", "item": "Base.Plank", "count": 4 }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.Hammer", "count": 1 }
+        ]
+      }
+    },
+
+    {
+      "key": "muldraugh_thinning",
+      "title": "Thinning the Herd",
+      "description": "Muldraugh is thick with them. <LINE> Make a dent and I will see you right.",
+      "order": 20,
+      "location": "Muldraugh",
+      "prereqs": {
+        "quests": ["intro_supplies"]
+      },
+      "objectives": [
+        { "type": "kill", "count": 25 }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.Axe", "count": 1 }
+        ],
+        "xp": { "Axe": 250 }
+      }
+    },
+
+    {
+      "key": "ekron_cleanup",
+      "title": "Clearing Ekron",
+      "description": "Nobody has been out to Ekron since it went bad. <LINE> Go and find out why.",
+      "order": 30,
+      "location": "Ekron",
+      "prereqs": {
+        "quests": ["muldraugh_thinning"],
+        "skills": { "Woodwork": 2 },
+        "daysSurvived": 3
+      },
+      "objectives": [
+        { "type": "kill", "count": 40, "label": "Zombies cleared in Ekron" },
+        { "type": "collect", "item": "Base.Screws", "count": 20, "location": false }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.Saw", "count": 1 },
+          { "item": "Base.Nails", "count": 50 }
+        ]
+      }
+    },
+
+    {
+      "key": "mall_run",
+      "title": "The Mall Run",
+      "description": "Crossroads Mall. In, out, do not linger.",
+      "order": 40,
+      "location": "CrossRoadsMall",
+      "prereqs": {
+        "kills": 100
+      },
+      "objectives": [
+        { "type": "kill", "count": 30 }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.Money", "count": 200 }
+        ]
+      },
+      "repeatable": { "cooldownHours": 72, "maxTurnins": 3 }
+    },
+
+    {
+      "key": "trainyard_scrap",
+      "title": "Trainyard Scrap",
+      "description": "The Muldraugh trainyard is full of metal nobody is coming back for.",
+      "order": 50,
+      "location": { "x": 11651, "y": 9890, "radius": 120 },
+      "prereqs": {
+        "quests": ["muldraugh_thinning"]
+      },
+      "objectives": [
+        { "type": "kill", "count": 15 }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.SheetMetal", "count": 4 }
+        ]
+      }
+    }
+  ]
+}
