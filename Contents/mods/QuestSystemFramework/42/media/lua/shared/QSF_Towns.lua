@@ -4,18 +4,12 @@
 
 require "QSF_Core"
 
--- the game names nine regions and getSquareRegion() returns them, but several towns on
--- the map are not regions at all and come back as "General". these are the missing ones.
---
--- centres are the map label positions the game itself draws, lifted from
--- media/maps/Muldraugh, KY/worldmap-annotations.lua, so they sit exactly where the town
--- name appears on the in-game map. the box sizes are a first pass sighted off those
--- positions rather than measured, and want checking against the debug map - an admin who
--- disagrees can always write a raw box in the json instead.
-
 QSF = QSF or {}
 QSF_Towns = QSF_Towns or {}
 
+-- the towns getSquareRegion() answers "General" for. centres are the map label positions
+-- from media/maps/Muldraugh, KY/worldmap-annotations.lua, so a box sits where the name is
+-- drawn on the in-game map. the sizes are sighted off those positions, not measured.
 QSF_Towns.DEFS = {
     Ekron       = { cx =   634, cy =  9746, w = 300, h = 300, label = "MapLabel_Ekron",       en = "Ekron" },
     Brandenburg = { cx =  2056, cy =  6070, w = 400, h = 400, label = "MapLabel_Brandenburg", en = "Brandenburg" },
@@ -24,8 +18,7 @@ QSF_Towns.DEFS = {
     FallasLake  = { cx =  7253, cy =  8279, w = 300, h = 300, label = "MapLabel_FallasLake",  en = "Fallas Lake" },
 }
 
--- the nine the engine already knows. listed so the ui can name them and so a typo in an
--- admin's json can be answered with "did you mean" rather than silence.
+-- Jefferson and LAA have no map label, so they fall through to their raw region name.
 QSF_Towns.VANILLA = {
     Muldraugh     = "MapLabel_Muldraugh",
     WestPoint     = "MapLabel_WestPoint",
@@ -34,8 +27,6 @@ QSF_Towns.VANILLA = {
     MarchRidge    = "MapLabel_MarchRidge",
     Louisville    = "MapLabel_Louisville",
     ValleyStation = "MapLabel_ValleyStation",
-    Jefferson     = nil,
-    LAA           = nil,
 }
 
 function QSF_Towns.box(name)
@@ -60,20 +51,14 @@ function QSF_Towns.displayName(name)
     return name
 end
 
--- off by default. region zones feed vanilla spawn and metazone logic, so five extra ones
--- can move zombie and loot distribution in ways nobody would ever trace back to a quest
--- mod. the matcher tests our boxes directly instead, which has no side effects at all.
--- turn this on only if you want other mods to see these towns through getSquareRegion().
+-- opt-in, and off by default: see the note on QSF.Config.registerTownZones.
 local function QSF_registerTownZones()
     if not QSF.Config.registerTownZones then return end
 
-    for name, town in pairs(QSF_Towns.DEFS) do
+    for name, _ in pairs(QSF_Towns.DEFS) do
         local box = QSF_Towns.box(name)
-        local ok, err = pcall(function()
-            getWorld():registerZone(name, "Region", box.x, box.y, 0, box.w, box.h)
-        end)
-        if not ok then QSF.warn("could not register zone " .. name .. ": " .. tostring(err)) end
-        if ok then QSF.log("registered region zone " .. name) end
+        getWorld():registerZone(name, "Region", box.x, box.y, 0, box.w, box.h)
+        QSF.log("registered region zone " .. name)
     end
 end
 

@@ -9,8 +9,6 @@ require "QSF_Rules"
 require "QSF_Location"
 require "QSF_ClientState"
 
--- the right hand pane: what the quest is, what it wants, and what it pays.
-
 QSF_Detail = ISPanel:derive("QSF_Detail")
 
 local PAD = 10
@@ -38,8 +36,7 @@ end
 function QSF_Detail:createChildren()
     ISPanel.createChildren(self)
 
-    -- rich text rather than hand-rolled wrapping, which also hands admins <LINE> and
-    -- <RGB:> in their descriptions for free.
+    -- rich text gives admins <LINE> and <RGB:> in a description for free.
     self.body = ISRichTextPanel:new(PAD, 0, self.width - PAD * 2, 60)
     self.body:initialise()
     self.body.background = false
@@ -174,8 +171,8 @@ function QSF_Detail:render()
             if i > MAX_REWARDS then break end
 
             local name = entry.item
-            local ok, display = pcall(function() return getItemDisplayName(entry.item) end)
-            if ok and display and display ~= "" then name = display end
+            local display = getItemDisplayName(entry.item)
+            if display and display ~= "" then name = display end
 
             local text = entry.count > 1 and (name .. " x" .. entry.count) or name
             self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2, UIFont.Small), PAD + ICON + GAP, y,
@@ -190,7 +187,7 @@ function QSF_Detail:render()
         end
     end
 
-    -- a locked quest is worth explaining. the player cannot act on "no" alone.
+    -- a player cannot act on "no" alone.
     local ok, reason, detail = QSF_Rules.canAccept(def, rec, getPlayer(), QSF_ClientState.state)
     if not ok and reason ~= "AlreadyActive" then
         local text = QSF_reasonText(reason, detail)
@@ -215,7 +212,7 @@ function QSF_Detail:objectiveLabel(obj)
     end
 
     local name = obj.item
-    local ok, display = pcall(function() return getItemDisplayName(obj.item) end)
-    if ok and display and display ~= "" then name = display end
+    local display = getItemDisplayName(obj.item)
+    if display and display ~= "" then name = display end
     return name
 end

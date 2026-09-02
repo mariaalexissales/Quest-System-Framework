@@ -6,11 +6,6 @@ require "QSF_Core"
 require "QSF_Rules"
 require "QSF_ClientState"
 
--- there is no "player gained an item" event in the game, so collect objectives are
--- polled. this runs on the client and never sends counts anywhere: the numbers are for
--- the window, and the server re-derives its own at turn-in regardless. the only thing
--- that leaves this file is a nudge saying a quest looks finished.
-
 QSF = QSF or {}
 QSF_Poll = QSF_Poll or {}
 
@@ -20,24 +15,16 @@ local CLAIM_MS = 10000
 local lastPoll = 0
 local lastClaim = {}
 
-local function QSF_nowMs()
-    local ok, ms = pcall(function() return getTimestampMs() end)
-    if ok and ms then return ms end
-    return 0
-end
-
--- asks the engine once per wanted item type rather than once per objective, so two
--- quests both wanting nails cost one call between them.
+-- there is no "player gained an item" event, so collect progress is polled. the counts
+-- never leave this machine: the server re-derives its own at turn-in.
 function QSF_Poll.scan(player)
     local wanted = QSF_Rules.wantedItems(QSF_ClientState.defs, QSF_ClientState.state)
     local counts = {}
     local inventory = player:getInventory()
 
     for fullType in pairs(wanted) do
-        -- Recurse, always. plain getItemCount ignores anything in a bag, and a bag is
-        -- exactly where a player keeps the twenty nails a quest asked for.
-        local ok, n = pcall(function() return inventory:getItemCountRecurse(fullType) end)
-        counts[fullType] = (ok and n) or 0
+        -- Recurse, or everything in a bag goes uncounted.
+        counts[fullType] = inventory:getItemCountRecurse(fullType)
     end
 
     return counts
@@ -59,9 +46,9 @@ local function QSF_tick()
     local player = getPlayer()
     if not player then return end
 
-    -- EveryOneMinute fires on game time, which runs fast when the player sleeps or
-    -- fast-forwards, so the real clock is what actually paces this.
-    local now = QSF_nowMs()
+    -- EveryOneMinute runs on game time, which sprints when the player sleeps, so the real
+    -- clock is what actually paces this.
+    local now = getTimestampMs()
     if now - lastPoll < POLL_MS then return end
     lastPoll = now
 
@@ -81,7 +68,7 @@ local function QSF_tick()
             if def and def.autoComplete and QSF_Rules.isComplete(def, rec, counts) then
                 if now - (lastClaim[key] or 0) >= CLAIM_MS then
                     lastClaim[key] = now
-                    -- a nudge, not a claim. the server checks everything again itself.
+                    -- a nudge, not a claim. the server checks the lot again itself.
                     QSF_ClientState.claim(key)
                 end
             end

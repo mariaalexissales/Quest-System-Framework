@@ -7,33 +7,26 @@ require "QSF_Rules"
 require "QSF_State"
 require "QSF_Rewards"
 
--- the turn-in. everything the client said about its own progress is discarded here and
--- re-derived from what the server can see, because this is the one moment where being
--- wrong hands out free rewards.
-
 if not QSF.isAuthority() then return end
 
 QSF = QSF or {}
 QSF_Verify = QSF_Verify or {}
 
--- the Recurse variants are not optional. plain getItemCount only looks at the top level
--- and would miss everything in a backpack, which is where players keep quest items.
+-- Recurse, or everything in a bag goes uncounted.
 function QSF_Verify.countItems(player, def)
     local counts = {}
     local inventory = player:getInventory()
 
     for _, obj in ipairs(def.objectives) do
         if obj.type == "collect" and counts[obj.item] == nil then
-            local ok, n = pcall(function() return inventory:getItemCountRecurse(obj.item) end)
-            counts[obj.item] = (ok and n) or 0
+            counts[obj.item] = inventory:getItemCountRecurse(obj.item)
         end
     end
 
     return counts
 end
 
--- all or nothing. taking half a player's items and then failing would be worse than
--- refusing, so the whole set is checked before anything is removed.
+-- the whole set is checked before anything is removed, so a short player keeps the lot.
 local function QSF_consume(player, def, counts)
     local wanted = {}
 
@@ -50,14 +43,14 @@ local function QSF_consume(player, def, counts)
     local inventory = player:getInventory()
     for item, need in pairs(wanted) do
         for _ = 1, need do
-            local ok, removed = pcall(function() return inventory:RemoveOneOf(item, true) end)
-            if not ok or not removed then
+            local removed = inventory:RemoveOneOf(item, true)
+            if not removed then
                 QSF.warn(tostring(player:getUsername()) .. ": could not take " .. item
                     .. " for " .. def.key .. ", some may have been taken already")
                 break
             end
             if isServer() then
-                pcall(function() sendRemoveItemFromContainer(inventory, removed) end)
+                sendRemoveItemFromContainer(inventory, removed)
             end
         end
     end
@@ -65,7 +58,8 @@ local function QSF_consume(player, def, counts)
     return true
 end
 
--- returns ok, reasonKey. the only path that completes a quest and pays it out.
+-- the only path that completes a quest and pays it out. whatever the client claimed about
+-- its own progress is ignored and re-derived here.
 function QSF_Verify.claim(player, key)
     if not player then return false, "Unknown" end
 
@@ -97,8 +91,7 @@ function QSF_Verify.claim(player, key)
     return true
 end
 
--- a client that crashed, or never had the mod, still finishes its quests. the sweep runs
--- the same check the claim does, so there is only one definition of done.
+-- covers a client that crashed or never had the mod, and runs the same check claim does.
 local function QSF_sweep()
     if not QSF_Defs or not QSF_Defs.loaded then return end
 

@@ -5,10 +5,6 @@
 require "QSF_Core"
 require "QSF_Towns"
 
--- one predicate for "is this spot inside the place the quest meant". lives in shared so
--- the client's progress display and the server's crediting cannot disagree about where
--- a boundary is.
-
 QSF = QSF or {}
 QSF_Location = QSF_Location or {}
 
@@ -23,25 +19,21 @@ local function QSF_inCircle(x, y, loc)
     return (dx * dx + dy * dy) <= (loc.radius * loc.radius)
 end
 
--- named zones cover both the vanilla regions and every named building, which is why this
--- goes through getZonesAt rather than getSquareRegion: the latter needs a square, and
--- only ever returns Region zones, so a building name could never match.
+-- getZonesAt rather than getSquareRegion: that one needs a square and only answers with
+-- Region zones, so a building name could never match.
 local function QSF_zoneNames(x, y, z)
     local names, sawRegion = {}, false
 
-    local ok = pcall(function()
-        local zones = getWorld():getMetaGrid():getZonesAt(math.floor(x), math.floor(y), math.floor(z or 0))
-        if not zones then return end
+    local zones = getWorld():getMetaGrid():getZonesAt(math.floor(x), math.floor(y), math.floor(z or 0))
+    if not zones then return names, sawRegion end
 
-        for i = 0, zones:size() - 1 do
-            local zone = zones:get(i)
-            local name = zone:getName()
-            if name and name ~= "" then names[name] = true end
-            if zone:getType() == "Region" then sawRegion = true end
-        end
-    end)
+    for i = 0, zones:size() - 1 do
+        local zone = zones:get(i)
+        local name = zone:getName()
+        if name and name ~= "" then names[name] = true end
+        if zone:getType() == "Region" then sawRegion = true end
+    end
 
-    if not ok then return {}, false end
     return names, sawRegion
 end
 

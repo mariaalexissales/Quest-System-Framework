@@ -6,11 +6,6 @@ require "QSF_Core"
 require "QSF_Net"
 require "QSF_Rules"
 
--- the authority's copy of who is doing what. lives in world-saved global mod data keyed
--- by username, deliberately not in player:getModData(): on a multiplayer client that is
--- the client's own copy, never pushed up, so a player could edit it freely and the server
--- would have no way to know.
-
 if not QSF.isAuthority() then return end
 
 QSF = QSF or {}
@@ -23,14 +18,8 @@ QSF_State.data = QSF_State.data or nil
 QSF_State.dirty = QSF_State.dirty or {}
 QSF_State.lastFlush = QSF_State.lastFlush or {}
 
-local function QSF_now()
-    local ok, ms = pcall(function() return getTimestampMs() end)
-    if ok and ms then return ms end
-    -- getTimestampMs is the name used elsewhere in b42, but fall back rather than error
-    -- if this build disagrees; the throttle degrades to "always flush", never to a crash.
-    return 0
-end
-
+-- keyed by username. player:getModData() on a client is that client's own copy and is
+-- never pushed up, so it cannot be trusted with anything a player could gain by editing.
 function QSF_State.ensure()
     if not QSF_State.data then
         QSF_State.data = ModData.getOrCreate(TABLE_NAME)
@@ -49,7 +38,6 @@ function QSF_State.forPlayer(username)
         all[username] = entry
     end
 
-    -- an older save may predate a field; quests is the only one anything reads.
     if not entry.quests then entry.quests = {} end
 
     return entry.quests
@@ -60,9 +48,8 @@ function QSF_State.record(username, key)
     return quests and quests[key] or nil
 end
 
--- progress ordinals only mean anything against the objective list they were recorded
--- for. if an admin reorders or retunes the objectives the signature moves, and stale
--- counters get zeroed rather than silently credited to the wrong objective.
+-- prog is indexed by objective position, so a reordered objective list would credit the
+-- wrong counter. the signature moves with it and the stale counters get zeroed instead.
 function QSF_State.reconcile(username, defs)
     local quests = QSF_State.forPlayer(username)
     if not quests then return end
@@ -93,8 +80,7 @@ function QSF_State.accept(username, def)
         prog = {},
     }
 
-    -- dense from 1 and never nil. these are kahlua tables and a hole in an array is a
-    -- reliable way to lose everything after it.
+    -- dense from 1: a hole in a kahlua array loses everything after it.
     for i = 1, #def.objectives do rec.prog[i] = 0 end
 
     quests[def.key] = rec
@@ -108,7 +94,7 @@ function QSF_State.abandon(username, key)
     local rec = quests[key]
     if not rec or rec.status ~= "active" then return end
 
-    -- a quest turned in before keeps its completed record; one never finished disappears.
+    -- turned in before, so the completed record stands; a first run just disappears.
     if (rec.turnins or 0) > 0 then
         quests[key] = { status = "done", done = rec.done, turnins = rec.turnins }
     else
@@ -123,8 +109,7 @@ function QSF_State.complete(username, key)
     local rec = quests[key]
     if not rec then return end
 
-    -- compacted on purpose: a long-lived server should not carry a counter array for
-    -- every quest every player has ever finished.
+    -- the counter array is dropped so a long save does not carry one per finished quest.
     quests[key] = {
         status = "done",
         done = QSF_Rules.worldHours(),
@@ -132,8 +117,7 @@ function QSF_State.complete(username, key)
     }
 end
 
--- bumps one kill counter, capped. without the cap a long-running quest accumulates an
--- unbounded integer in the world save for no benefit.
+-- capped, or a long-running quest grows an unbounded integer in the world save.
 function QSF_State.addKill(username, key, index, cap)
     local rec = QSF_State.record(username, key)
     if not rec or rec.status ~= "active" or not rec.prog then return false end
@@ -144,10 +128,6 @@ function QSF_State.addKill(username, key, index, cap)
     rec.prog[index] = have + 1
     return rec.prog[index] >= cap
 end
-
--- ---------------------------------------------------------------------------
--- pushing state to the client
--- ---------------------------------------------------------------------------
 
 local function QSF_playerByName(username)
     if not isServer() then return getPlayer() end
@@ -179,14 +159,13 @@ function QSF_State.push(username, key)
 
     QSF_State.dirty[username] = QSF_State.dirty[username] or {}
     QSF_State.dirty[username][key] = nil
-    QSF_State.lastFlush[username] = QSF_now()
+    QSF_State.lastFlush[username] = getTimestampMs()
 end
 
--- a player clearing a horde would otherwise send one packet per kill. urgent skips the
--- throttle, because a counter hitting its target has to show up immediately or the ui
--- looks stuck at the moment it matters most.
+-- a horde would otherwise be one packet per kill. urgent skips the throttle so a counter
+-- reaching its target still lands immediately.
 function QSF_State.markDirty(username, key, urgent)
-    local now = QSF_now()
+    local now = getTimestampMs()
     local last = QSF_State.lastFlush[username] or 0
 
     if urgent or (now - last) >= FLUSH_MS then

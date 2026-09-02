@@ -7,25 +7,15 @@ require "QSF_Location"
 require "QSF_Rules"
 require "QSF_State"
 
--- crediting zombie kills to whoever earned them.
---
--- OnZombieDead hands over the zombie and nothing else - there is no OnKillZombie and no
--- killer argument - so the attacker comes from zombie:getAttackedBy(), which is nil for
--- fire and falls. whether that survives on a dedicated server is the one assumption in
--- this mod that source alone cannot settle, so QSF.Config.clientKillReporting exists as
--- the way out if a server log shows a nil attacker.
-
 if not QSF.isAuthority() then return end
 
 QSF = QSF or {}
 QSF_Kills = QSF_Kills or {}
 
--- a modified client can claim whatever it likes, so the reported path is clamped and
--- noisy rather than trusted. this is the honest ceiling for a client-detected event.
 local MAX_PER_FLUSH = 40
 
--- the kill is credited where the zombie died, not where the player stands. that is what
--- "kills in Ekron" means, and it stays right when somebody shoots across a boundary.
+-- credited where the zombie died rather than where the player stands, so a shot across a
+-- boundary still counts for the place it was aimed at.
 function QSF_Kills.credit(username, x, y, z)
     if not username then return end
 
@@ -42,8 +32,7 @@ function QSF_Kills.credit(username, x, y, z)
                 for i, obj in ipairs(def.objectives) do
                     if obj.type == "kill" and QSF_Location.matchXY(x, y, z, obj.location) then
                         local justFinished = QSF_State.addKill(username, key, i, obj.count)
-                        -- a counter reaching its target has to reach the ui immediately,
-                        -- so completion skips the send throttle.
+                        -- a counter hitting its target skips the send throttle.
                         QSF_State.markDirty(username, key, justFinished)
                     end
                 end
@@ -56,25 +45,22 @@ local function QSF_onZombieDead(zombie)
     if QSF.Config.clientKillReporting then return end
     if not zombie then return end
 
-    local ok, attacker = pcall(function() return zombie:getAttackedBy() end)
-    if not ok or not attacker then return end
+    -- OnZombieDead passes the zombie and nothing else, so the killer comes off the zombie.
+    -- nil for fire and falls, and getUsername is nil for anything that is not a player.
+    local attacker = zombie:getAttackedBy()
+    if not attacker then return end
 
-    local username
-    local okName = pcall(function() username = attacker:getUsername() end)
-    -- a username is the cheapest discriminator between a player and anything else that
-    -- can land a killing blow.
-    if not okName or not username then return end
+    local username = attacker:getUsername()
+    if not username then return end
 
-    -- the square can already be gone while the zombie is torn down, but the float
-    -- coordinates survive, so the location test is written against those.
+    -- the square is already gone while the zombie is torn down; the coordinates are not.
     QSF_Kills.credit(username, zombie:getX(), zombie:getY(), zombie:getZ())
 end
 
 Events.OnZombieDead.Add(QSF_onZombieDead)
 
--- the fallback. the client is certain who swung, but cannot be trusted about how often,
--- so the server re-derives the location from the player it can see and throws the
--- client's own claim about where it happened away.
+-- the client knows who swung but not how honestly, so the server re-derives the location
+-- from the player it can see and discards whatever the client claimed about it.
 function QSF_Kills.onReported(player, args)
     if not QSF.Config.clientKillReporting then return end
     if not player or not args then return end

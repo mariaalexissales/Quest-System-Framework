@@ -4,36 +4,25 @@
 
 require "QSF_Core"
 
--- every question of the form "may this player do this yet" lives here, and both sides
--- call it. the client greys a row with these functions and the server authorises the
--- same action with the same functions, so the two cannot drift into disagreeing about
--- what is allowed - which is the bug that makes a quest log feel broken.
-
 QSF = QSF or {}
 QSF_Rules = QSF_Rules or {}
 
 local function QSF_worldHours()
-    local ok, hours = pcall(function() return getGameTime():getWorldAgeHours() end)
-    if ok and hours then return hours end
-    return 0
+    return getGameTime():getWorldAgeHours()
 end
 
 QSF_Rules.worldHours = QSF_worldHours
 
 local function QSF_perkLevel(player, perkName)
-    local ok, level = pcall(function()
-        local perk = PerkFactory.Perks.FromString(perkName)
-        if not perk then return 0 end
-        return player:getPerkLevel(perk)
-    end)
-    if ok and level then return level end
-    return 0
+    local perk = PerkFactory.Perks.FromString(perkName)
+    if not perk then return 0 end
+    return player:getPerkLevel(perk)
 end
 
 QSF_Rules.perkLevel = QSF_perkLevel
 
--- returns ok, reasonKey, detail. the reason is a translation key suffix so the ui can
--- say what is missing rather than just refusing.
+-- the client greys a row with this and the server authorises with it, so a greyed row and
+-- a refused button cannot disagree. reason is a translation key suffix.
 function QSF_Rules.canAccept(def, rec, player, state)
     if not def then return false, "Unknown" end
 
@@ -79,19 +68,16 @@ function QSF_Rules.canAccept(def, rec, player, state)
             return false, "NeedKills", prereqs.kills
         end
 
-        if prereqs.daysSurvived then
-            local ok, days = pcall(function() return getGameTime():getDaysSurvived() end)
-            if ok and days and days < prereqs.daysSurvived then
-                return false, "NeedDays", prereqs.daysSurvived
-            end
+        if prereqs.daysSurvived and getGameTime():getDaysSurvived() < prereqs.daysSurvived then
+            return false, "NeedDays", prereqs.daysSurvived
         end
     end
 
     return true
 end
 
--- counts is a map of item full type to how many the player holds, gathered by whoever is
--- asking. kill progress comes from the stored record. returns have, need, satisfied.
+-- counts maps item full type to how many the player holds; kill progress comes off the
+-- stored record. returns have, need, satisfied.
 function QSF_Rules.objectiveProgress(obj, index, rec, counts)
     local need = obj.count
 
@@ -116,8 +102,7 @@ function QSF_Rules.isComplete(def, rec, counts)
     return true
 end
 
--- the fraction across every objective, for the row's progress bar. each objective counts
--- equally regardless of its size, so a quest is not dominated by its largest number.
+-- each objective weighs the same, so a quest is not dominated by its largest number.
 function QSF_Rules.overallProgress(def, rec, counts)
     if not def or #def.objectives == 0 then return 0 end
 
@@ -132,8 +117,7 @@ function QSF_Rules.overallProgress(def, rec, counts)
     return total / #def.objectives
 end
 
--- the union of item types the player's active quests care about, so the inventory poll
--- asks the engine once per type instead of once per objective.
+-- the union across active quests, so the poll asks once per type not once per objective.
 function QSF_Rules.wantedItems(defs, state)
     local wanted = {}
 

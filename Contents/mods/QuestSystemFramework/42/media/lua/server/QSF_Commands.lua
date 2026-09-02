@@ -9,31 +9,17 @@ require "QSF_State"
 require "QSF_Verify"
 require "QSF_Kills"
 
--- everything a client can ask the server to do, in one table. the shape follows vanilla's
--- media/lua/server/ClientCommands.lua: a table of handlers and one dispatcher.
---
--- in singleplayer QSF_Net calls straight into this table, so these handlers are the only
--- implementation of accept, abandon and claim that exists anywhere.
-
 if not QSF.isAuthority() then return end
 
 QSF = QSF or {}
 QSF_Commands = QSF_Commands or {}
 
--- definitions are sent in pieces. a hundred quests is more text than one command should
--- carry, and the reassembly on the far side is cheap.
+-- a hundred quests is more text than one command should carry.
 local CHUNK = 8
 local CLAIM_COOLDOWN_MS = 3000
 
--- runtime only, deliberately not in mod data: a rate limit should not survive a restart
--- or bloat the world save.
+-- runtime only. a rate limit has no business surviving a restart or sitting in the save.
 local lastClaim = {}
-
-local function QSF_nowMs()
-    local ok, ms = pcall(function() return getTimestampMs() end)
-    if ok and ms then return ms end
-    return 0
-end
 
 -- descriptions travel too; the client has no files of its own to read them from.
 local function QSF_wireDefs()
@@ -93,8 +79,8 @@ function QSF_Commands.handlers.accept(player, args)
     local ok, reason = QSF_Rules.canAccept(def, quests[args.key], player, quests)
 
     if not ok then
-        -- the client greys the same rows using the same function, so this only fires on
-        -- a stale window or a client that went around the ui.
+        -- the client greys these rows with the same function, so this is a stale window
+        -- or somebody going around the ui.
         QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason })
         return
     end
@@ -115,7 +101,7 @@ function QSF_Commands.handlers.claim(player, args)
     if not player or not args or not args.key then return end
 
     local username = player:getUsername()
-    local now = QSF_nowMs()
+    local now = getTimestampMs()
     local mark = username .. "/" .. args.key
 
     if now - (lastClaim[mark] or 0) < CLAIM_COOLDOWN_MS then return end
@@ -126,8 +112,7 @@ function QSF_Commands.handlers.claim(player, args)
     if ok then
         QSF_Net.toClient(player, "toast", { kind = "completed", key = args.key })
     elseif reason ~= "Incomplete" then
-        -- an incomplete claim is just the client polling ahead of the server; anything
-        -- else is worth telling the player about.
+        -- an incomplete claim is just the client polling ahead of the server.
         QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason })
     end
 end
@@ -137,8 +122,7 @@ function QSF_Commands.handlers.kills(player, args)
 end
 
 function QSF_Commands.handlers.reload(player)
-    -- the button is only drawn for admins, but the button is drawn by the client, so the
-    -- decision is made again here where it cannot be edited.
+    -- the button is only drawn for admins, but the client draws the button.
     if not QSF.isAdmin(player) then
         QSF.warn(tostring(player and player:getUsername()) .. " asked for a reload without permission")
         return

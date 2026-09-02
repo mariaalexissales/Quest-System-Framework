@@ -4,26 +4,23 @@
 
 require "QSF_Core"
 
--- paying a quest out. server side only, and in multiplayer every add has to be announced
--- with sendAddItemToContainer or the client never sees the item appear.
-
 if not QSF.isAuthority() then return end
 
 QSF = QSF or {}
 QSF_Rewards = QSF_Rewards or {}
 
--- AddItems is one call for a stack, but it returns a list and a partial failure is
--- easier to reason about one item at a time, so single items go through AddItem.
+-- one at a time rather than AddItems, so a container that fills partway through reports
+-- how far it got instead of returning a short list nobody reads.
 local function QSF_giveItem(player, fullType, count)
     local inventory = player:getInventory()
     local given = 0
 
     for _ = 1, count do
-        local ok, item = pcall(function() return inventory:AddItem(fullType) end)
-        if not ok or not item then break end
+        local item = inventory:AddItem(fullType)
+        if not item then break end
 
         if isServer() then
-            pcall(function() sendAddItemToContainer(inventory, item) end)
+            sendAddItemToContainer(inventory, item)
         end
 
         given = given + 1
@@ -47,9 +44,7 @@ function QSF_Rewards.grant(player, def)
     end
 
     for perkName, amount in pairs(rewards.xp or {}) do
-        pcall(function()
-            local perk = PerkFactory.Perks.FromString(perkName)
-            if perk then player:getXp():AddXP(perk, amount) end
-        end)
+        local perk = PerkFactory.Perks.FromString(perkName)
+        if perk then player:getXp():AddXP(perk, amount) end
     end
 end
