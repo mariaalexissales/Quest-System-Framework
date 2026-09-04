@@ -122,6 +122,36 @@ Named buildings work too, since every named zone at that spot gets checked. `Cro
 Boxes are measured from the top-left corner. Radius is in tiles. Add `"z": 0` to pin it to one
 floor, otherwise any floor counts.
 
+## Teleport
+
+```json
+"teleport": { "x": 11651, "y": 9890, "z": 0, "cooldownHours": 12 }
+```
+
+Give a quest a `teleport` and a Teleport button appears next to Accept once the player has taken
+it. They get a "You will be teleported to the event location, proceed?" prompt, and on yes they
+go. It's meant for event quests, where walking somebody forty tiles to the start isn't the point.
+
+The button only exists while the quest is in progress. It's not on Available and it's not on
+Completed.
+
+This can't be worked out from `location`, which is why it's written separately. A location can be
+a town name or an `any` list, and neither of those is a spot to stand on.
+
+`z` is the floor, default 0. That's different to `location`, where leaving `z` out means any floor
+counts.
+
+`cooldownHours` is in-game hours and defaults to 0, meaning they can use it as often as they like
+while the quest is on. Set it if you'd rather it wasn't a free ride home and back. The button
+stays visible while it's cooling down and shows the hours left.
+
+The cooldown belongs to the quest, not to one run of it, so dropping the quest and taking it again
+won't clear it. That's the only thing an abandoned quest leaves behind, and only if the player
+actually teleported.
+
+Point it at something off the map and it gets refused and logged. Check your coordinates against
+the in-game map with the debug menu open.
+
 ## Rewards
 
 ```json
@@ -147,3 +177,16 @@ A prereq loop, where A needs B and B needs A, gets caught at load. Left alone it
 quests permanently unavailable and nothing would ever tell you why.
 
 Kills count where the zombie died, not where the player was standing.
+
+A file with a syntax error in it logs a warning naming the file and the line, and then, because of
+how the game's Lua runtime reports errors, a long Java stack trace as well. It looks like a crash.
+It isn't one. That file is dropped, every other file still loads, and the server carries on. If you
+want to see it for yourself, drop a deliberately broken `.json` in the folder and hit Reload:
+
+```json
+{ "quests": [ { "key": "oops"
+```
+
+You'll get the warning, the trace, and then the usual summary line with that file counted under
+rejected. If you're running with the debugger's Break On Error turned on it will stop there too,
+which is the debugger doing its job rather than a sign anything is wrong.

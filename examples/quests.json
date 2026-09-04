@@ -85,6 +85,7 @@
       "description": "There's more metal sat in that yard than we could use in a year, and nobody's coming back for it. <LINE> Clear the ones wandering it and it's ours.",
       "order": 50,
       "location": { "x": 11651, "y": 9890, "radius": 120 },
+      "teleport": { "x": 11651, "y": 9890, "z": 0, "cooldownHours": 12 },
       "prereqs": {
         "quests": ["muldraugh_thinning"]
       },
