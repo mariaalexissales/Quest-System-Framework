@@ -59,7 +59,7 @@ description=[b][u]Requires [url=https://steamcommunity.com/sharedfiles/filedetai
 description=
 description=[hr][/hr]
 description=[h2]Support the Mod[/h2]
-description=If this increased the immersion in your server, or scratched everyone’s dailies itch, consider supporting me below~! Would love for more of y’all to watch me debug the code live, or just hang out :D 
+description=If this increased the immersion in your server, or scratched everyone’s dailies itch, consider supporting me below~! Would love for more of y’all to watch me debug the code live, or just hang out :D
 description=[url=https://ko-fi.com/estralexe]☕ Ko-fi[/url]
 description=[url=https://www.twitch.tv/itsestral]🔴 Twitch[/url]
 description=
@@ -70,11 +70,11 @@ description=
 description=[hr][/hr]
 description=[h2]More From Estral[/h2]
 description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3746632343][img]https://images.steamusercontent.com/ugc/15813353898320562803/21D8A18963A880E6C1ED8AD9122946EFC6AC5A7B/[/img][/url]
-description=[b]Bundle Up! - A Packing Mod[/b] 
+description=[b]Bundle Up! - A Packing Mod[/b]
 description=organize your excessive amounts of stuff
 description=
 description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3791631305][img]https://images.steamusercontent.com/ugc/11843508093091308261/A79EED3FC204D4945A5842ACFCD964749B4F39EE/[/img][/url]
-description=[b]Pinoy Pantry[/b] 
+description=[b]Pinoy Pantry[/b]
 description=sarap ng Pinas in Knox Country
 description=
 description=[hr][/hr]
