@@ -76,6 +76,26 @@ function QSF_Rules.canAccept(def, rec, player, state)
     return true
 end
 
+-- the same split as canAccept: the client greys the button with this and the server
+-- authorises with it, so a greyed button and a refused command cannot disagree.
+function QSF_Rules.canTeleport(def, rec)
+    if not def or not def.teleport then return false, "NoTeleport" end
+
+    -- the destination only exists for a quest somebody is actually on.
+    if not rec or rec.status ~= "active" then return false, "NotActive" end
+
+    local cooldown = def.teleport.cooldownHours or 0
+    if cooldown > 0 and rec.tp then
+        local readyAt = rec.tp + cooldown
+        local now = QSF_worldHours()
+        if now < readyAt then
+            return false, "OnCooldown", math.ceil(readyAt - now)
+        end
+    end
+
+    return true
+end
+
 -- counts maps item full type to how many the player holds; kill progress comes off the
 -- stored record. returns have, need, satisfied.
 function QSF_Rules.objectiveProgress(obj, index, rec, counts)

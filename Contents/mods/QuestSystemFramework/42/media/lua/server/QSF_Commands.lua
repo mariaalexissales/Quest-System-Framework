@@ -32,6 +32,7 @@ local function QSF_wireDefs()
             description = def.description,
             order = def.order,
             location = def.location,
+            teleport = def.teleport,
             prereqs = def.prereqs,
             objectives = def.objectives,
             rewards = def.rewards,
@@ -88,6 +89,51 @@ function QSF_Commands.handlers.accept(player, args)
     QSF_State.accept(username, def)
     QSF_State.push(username, args.key)
     QSF_Net.toClient(player, "toast", { kind = "accepted", key = args.key })
+end
+
+-- the client sends a key and nothing else. the coordinates are read from the server's own
+-- def, so a crafted packet cannot ask to be put somewhere the quest never named.
+function QSF_Commands.handlers.teleport(player, args)
+    if not player or not args or not args.key then return end
+
+    local username = player:getUsername()
+    local def = QSF_Defs.get(args.key)
+    if not def or not def.teleport then return end
+
+    local quests = QSF_State.forPlayer(username)
+    local ok, reason = QSF_Rules.canTeleport(def, quests[args.key])
+
+    if not ok then
+        -- the client greys the button with the same function, so this is a stale window.
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason })
+        return
+    end
+
+    local spot = def.teleport
+
+    -- chunk coordinates are world coordinates over ten. the same test the vanilla map makes
+    -- before it offers a teleport at all.
+    if not getWorld():getMetaGrid():isValidChunk(spot.x / 10, spot.y / 10) then
+        QSF.warn(args.key .. ": teleport points outside the map at " .. spot.x .. "," .. spot.y)
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = "OffMap" })
+        return
+    end
+
+    -- stamped before the move, so a cooldown still starts if the teleport itself throws.
+    QSF_State.markTeleport(username, args.key)
+    QSF_State.push(username, args.key)
+
+    -- half a tile lands them on the centre rather than the corner.
+    local x, y = spot.x + 0.5, spot.y + 0.5
+
+    -- singleplayer runs the client leg of this anyway, and moving the same player twice
+    -- would be pointless rather than harmful.
+    if isServer() then
+        local moved = pcall(function() player:teleportTo(x, y, spot.z) end)
+        if not moved then QSF.warn("server could not teleport " .. username) end
+    end
+
+    QSF_Net.toClient(player, "teleport", { key = args.key, x = x, y = y, z = spot.z })
 end
 
 function QSF_Commands.handlers.abandon(player, args)

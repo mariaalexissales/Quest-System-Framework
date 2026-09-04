@@ -88,6 +88,39 @@ local function QSF_normaliseLocation(loc, where)
     return { x = loc.x, y = loc.y, w = w, h = h, z = loc.z }, nil
 end
 
+-- a destination, not a region. a location can be a zone name or a union, neither of which
+-- has a point to stand on, so where to put the player is written out separately.
+local function QSF_normaliseTeleport(raw, key, errors)
+    if raw == nil then return nil end
+
+    if type(raw) ~= "table" then
+        errors[#errors + 1] = key .. ": teleport must be an object with x and y"
+        return nil
+    end
+
+    if type(raw.x) ~= "number" or type(raw.y) ~= "number" then
+        errors[#errors + 1] = key .. ": teleport needs numeric x and y"
+        return nil
+    end
+
+    -- a location leaves z absent to mean any floor. somewhere to stand has to pick one.
+    local z = tonumber(raw.z) or 0
+
+    -- zero is no limit, the same as it means on repeatable.
+    local cooldown = tonumber(raw.cooldownHours) or 0
+    if cooldown < 0 then
+        errors[#errors + 1] = key .. ": teleport cooldownHours cannot be negative"
+        cooldown = 0
+    end
+
+    return {
+        x = raw.x,
+        y = raw.y,
+        z = math.floor(z),
+        cooldownHours = math.floor(cooldown),
+    }
+end
+
 local function QSF_normaliseObjective(raw, index, questLocation, errors, key)
     local where = key .. " objective " .. index
 
@@ -317,6 +350,7 @@ function QSF_Schema.normalise(raw, sourceFile)
         description = type(raw.description) == "string" and raw.description or "",
         order = tonumber(raw.order) or 100,
         location = questLocation,
+        teleport = QSF_normaliseTeleport(raw.teleport, key, errors),
         prereqs = QSF_normalisePrereqs(raw.prereqs, errors, key),
         objectives = objectives,
         rewards = QSF_normaliseRewards(raw.rewards, errors, key),

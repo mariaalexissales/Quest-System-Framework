@@ -77,6 +77,9 @@ function QSF_State.accept(username, def)
         sig = def.sig,
         started = QSF_Rules.worldHours(),
         turnins = existing and existing.turnins or 0,
+        -- carried like turnins: a teleport cooldown belongs to the quest, not to one run
+        -- of it, or dropping and retaking would hand out a free reset.
+        tp = existing and existing.tp or nil,
         prog = {},
     }
 
@@ -94,9 +97,14 @@ function QSF_State.abandon(username, key)
     local rec = quests[key]
     if not rec or rec.status ~= "active" then return end
 
-    -- turned in before, so the completed record stands; a first run just disappears.
+    -- turned in before, so the completed record stands; a first run just disappears,
+    -- unless a teleport was used, which leaves the stamp behind on its own. a quest
+    -- nobody teleported on still leaves nothing in the save.
     if (rec.turnins or 0) > 0 then
-        quests[key] = { status = "done", done = rec.done, turnins = rec.turnins }
+        quests[key] = { status = "done", done = rec.done, turnins = rec.turnins, tp = rec.tp }
+    elseif rec.tp then
+        -- no status, so every consumer reads this as a quest that was never started.
+        quests[key] = { tp = rec.tp }
     else
         quests[key] = nil
     end
@@ -114,6 +122,7 @@ function QSF_State.complete(username, key)
         status = "done",
         done = QSF_Rules.worldHours(),
         turnins = (rec.turnins or 0) + 1,
+        tp = rec.tp,
     }
 end
 
@@ -127,6 +136,16 @@ function QSF_State.addKill(username, key, index, cap)
 
     rec.prog[index] = have + 1
     return rec.prog[index] >= cap
+end
+
+-- only set on an active record, but deliberately carried through complete and abandon so
+-- the cooldown cannot be reset by dropping the quest and taking it again.
+function QSF_State.markTeleport(username, key)
+    local rec = QSF_State.record(username, key)
+    if not rec or rec.status ~= "active" then return false end
+
+    rec.tp = QSF_Rules.worldHours()
+    return true
 end
 
 local function QSF_playerByName(username)

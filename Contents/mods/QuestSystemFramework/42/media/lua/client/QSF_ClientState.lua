@@ -76,6 +76,18 @@ function handlers.delta(args)
     QSF_touch()
 end
 
+-- the server has already authorised and moved its own copy. this is the leg that sticks,
+-- since a client owns its player's position and the server would only rubber-band a
+-- move it did not make itself.
+function handlers.teleport(args)
+    if not args or type(args.x) ~= "number" or type(args.y) ~= "number" then return end
+
+    local player = getPlayer()
+    if not player then return end
+
+    player:teleportTo(args.x, args.y, args.z or 0)
+end
+
 function handlers.toast(args)
     QSF_ClientState.lastToast = args
     QSF_touch()
@@ -109,6 +121,10 @@ end
 
 function QSF_ClientState.claim(key)
     QSF_Net.toServer("claim", { key = key })
+end
+
+function QSF_ClientState.teleport(key)
+    QSF_Net.toServer("teleport", { key = key })
 end
 
 function QSF_ClientState.reload()

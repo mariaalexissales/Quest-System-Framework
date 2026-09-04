@@ -3,6 +3,7 @@
 ----------
 
 require "ISUI/ISCollapsableWindow"
+require "ISUI/ISModalDialog"
 require "QSF_Button"
 require "QSF_Row"
 require "QSF_Detail"
@@ -133,6 +134,13 @@ function QSF_Panel:createChildren()
     self.action:setWidth(QSF_labelWidth(self.action, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon"))
     self:attach(self.action)
 
+    -- beside the action button, which keeps a fixed x and a fixed width, so its right edge
+    -- is a stable anchor and the strip never reflows.
+    self.teleport = QSF_Button:new(self.action:getRight() + 4, footerY + 2, 10, FOOTER_HEIGHT - 6,
+        getText("IGUI_QSF_Teleport"), self, QSF_Panel.onTeleport)
+    self.teleport:setWidth(QSF_labelWidth(self.teleport, "IGUI_QSF_Teleport", "IGUI_QSF_TeleportCooldown"))
+    self:attach(self.teleport)
+
     self.reload = QSF_Button:new(self.width - PAD - 90, footerY + 2, 90, FOOTER_HEIGHT - 6,
         getText("IGUI_QSF_Reload"), self, QSF_Panel.onReload)
     self:attach(self.reload, { anchorLeft = false, anchorRight = true })
@@ -169,6 +177,36 @@ function QSF_Panel:onAction()
     end
 
     QSF_ClientState.accept(self.selected)
+end
+
+-- the first confirmation in the mod. accept, abandon and turn in all still fire on the
+-- click, but this one moves the player across the map and cannot be walked back.
+function QSF_Panel:onTeleport()
+    if not self.selected then return end
+
+    -- nothing under a modal stops being clickable, so a second press would stack a second
+    -- prompt on the first. vanilla guards its sleep dialog the same way.
+    if self.teleportModal then return end
+
+    local modal = ISModalDialog:new(
+        getCore():getScreenWidth() / 2 - 175, getCore():getScreenHeight() / 2 - 75, 350, 150,
+        getText("IGUI_QSF_TeleportConfirm"), true, self, QSF_Panel.onConfirmTeleport,
+        self.playerNum, self.selected)
+
+    modal:initialise()
+    modal:addToUIManager()
+    modal:bringToTop()
+
+    self.teleportModal = modal
+end
+
+-- the key travels with the modal, so a selection that moves while it is open cannot send
+-- the player to a different quest's coordinate.
+function QSF_Panel:onConfirmTeleport(button, key)
+    self.teleportModal = nil
+
+    if button.internal ~= "YES" or not key then return end
+    QSF_ClientState.teleport(key)
 end
 
 function QSF_Panel:onReload()
@@ -260,6 +298,8 @@ function QSF_Panel:refresh()
 end
 
 function QSF_Panel:updateAction()
+    self:updateTeleport()
+
     if not self.action then return end
 
     local def = self.selected and QSF_ClientState.defs[self.selected] or nil
@@ -286,6 +326,32 @@ function QSF_Panel:updateAction()
     local ok = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
     self.action:setTitle(getText("IGUI_QSF_Accept"))
     self.action:setEnable(ok == true)
+end
+
+-- only reachable on a quest the player is actually on, so it is hidden outright rather
+-- than greyed on the Available and Completed tabs.
+function QSF_Panel:updateTeleport()
+    if not self.teleport then return end
+
+    local def = self.selected and QSF_ClientState.defs[self.selected] or nil
+    local rec = self.selected and QSF_ClientState.record(self.selected) or nil
+
+    if not def or not def.teleport or not rec or rec.status ~= "active" then
+        self.teleport:setVisible(false)
+        return
+    end
+
+    self.teleport:setVisible(true)
+
+    local ok, _, hours = QSF_Rules.canTeleport(def, rec)
+    if ok then
+        self.teleport:setTitle(getText("IGUI_QSF_Teleport"))
+    else
+        -- the refused toast is never drawn, so the wait has to be readable on the button.
+        self.teleport:setTitle(getText("IGUI_QSF_TeleportCooldown", tostring(hours or 0)))
+    end
+
+    self.teleport:setEnable(ok == true)
 end
 
 function QSF_Panel:prerender()
@@ -368,6 +434,7 @@ function QSF_Panel:onResize()
     end
 
     if self.action then self.action:setY(footerY + 2) end
+    if self.teleport then self.teleport:setY(footerY + 2) end
     if self.reload then self.reload:setY(footerY + 2) end
 end
 
