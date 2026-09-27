@@ -9,6 +9,7 @@ QSF_Schema = QSF_Schema or {}
 
 local VALID_KEY = "^[%w_%.%-]+$"
 local MAX_COLLECT_TYPES = 16
+local MAX_CHOICE_OPTIONS = 8
 
 -- a lookup that throws means the engine is not ready yet, which is "cannot say" rather
 -- than "invalid" - otherwise an early load would silently delete every objective.
@@ -236,6 +237,62 @@ local function QSF_normalisePrereqs(raw, errors, key)
     return out
 end
 
+-- shared by rewards.items and by every option in a reward choice, so a pool entry is held
+-- to exactly the same standard as a flat reward. returns nil on anything unusable.
+local function QSF_normaliseRewardItem(entry, where, errors)
+    if type(entry) ~= "table" or type(entry.item) ~= "string" then
+        errors[#errors + 1] = where .. " needs an item full type"
+        return nil
+    end
+
+    if not QSF_itemExists(entry.item) then
+        errors[#errors + 1] = where .. ": unknown item " .. entry.item
+        return nil
+    end
+
+    local count = math.floor(tonumber(entry.count) or 1)
+    if count < 1 then count = 1 end
+
+    return { item = entry.item, count = count }
+end
+
+-- a pool the player picks one of at turn-in. a bad option is dropped and the rest still
+-- stand; losing every one of them drops the choice rather than leaving an empty pool for
+-- the picker to open on.
+local function QSF_normaliseChoice(raw, errors, key)
+    if raw == nil then return nil end
+
+    if type(raw) ~= "table" then
+        errors[#errors + 1] = key .. ": rewards.choice must be an object with an options list"
+        return nil
+    end
+
+    if type(raw.options) ~= "table" or #raw.options == 0 then
+        errors[#errors + 1] = key .. ": rewards.choice needs a non-empty options list"
+        return nil
+    end
+
+    local options = {}
+    for i, entry in ipairs(raw.options) do
+        local option = QSF_normaliseRewardItem(entry, key .. ": rewards.choice option " .. i, errors)
+        if option then options[#options + 1] = option end
+    end
+
+    if #options == 0 then
+        errors[#errors + 1] = key .. ": rewards.choice had no usable options, so it was dropped"
+        return nil
+    end
+
+    if #options > MAX_CHOICE_OPTIONS then
+        errors[#errors + 1] = key .. ": more than " .. MAX_CHOICE_OPTIONS .. " reward options makes an unwieldy picker"
+    end
+
+    return {
+        label = (type(raw.label) == "string" and raw.label ~= "") and raw.label or nil,
+        options = options,
+    }
+end
+
 local function QSF_normaliseRewards(raw, errors, key)
     if raw == nil then return { items = {} } end
     if type(raw) ~= "table" then
@@ -245,16 +302,9 @@ local function QSF_normaliseRewards(raw, errors, key)
 
     local out = { items = {} }
 
-    for _, entry in ipairs(raw.items or {}) do
-        if type(entry) ~= "table" or type(entry.item) ~= "string" then
-            errors[#errors + 1] = key .. ": every reward item needs an item full type"
-        elseif not QSF_itemExists(entry.item) then
-            errors[#errors + 1] = key .. ": unknown reward item " .. entry.item
-        else
-            local count = math.floor(tonumber(entry.count) or 1)
-            if count < 1 then count = 1 end
-            out.items[#out.items + 1] = { item = entry.item, count = count }
-        end
+    for i, entry in ipairs(raw.items or {}) do
+        local item = QSF_normaliseRewardItem(entry, key .. ": reward item " .. i, errors)
+        if item then out.items[#out.items + 1] = item end
     end
 
     if raw.xp ~= nil then
@@ -274,6 +324,8 @@ local function QSF_normaliseRewards(raw, errors, key)
             end
         end
     end
+
+    out.choice = QSF_normaliseChoice(raw.choice, errors, key)
 
     return out
 end
@@ -363,6 +415,12 @@ function QSF_Schema.normalise(raw, sourceFile)
     if consumes and def.autoComplete then
         def.autoComplete = false
         errors[#errors + 1] = key .. ": has consuming collect objectives, so autoComplete was forced off"
+    end
+
+    -- there is nobody to ask which reward they wanted when the sweep fires the claim.
+    if def.rewards.choice and def.autoComplete then
+        def.autoComplete = false
+        errors[#errors + 1] = key .. ": has a reward choice, so autoComplete was forced off"
     end
 
     def.sig = QSF_Schema.signature(def)

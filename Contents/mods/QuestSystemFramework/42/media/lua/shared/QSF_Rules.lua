@@ -96,6 +96,20 @@ function QSF_Rules.canTeleport(def, rec)
     return true
 end
 
+-- the same split again: the panel enables Confirm with this and the server authorises the
+-- payout with it, so a pick the picker allowed cannot be one the server refuses. the pick
+-- is an ordinal into the server's own options, never an item name.
+function QSF_Rules.pickedReward(def, pick)
+    local choice = def and def.rewards and def.rewards.choice
+    if not choice then return nil, "NoChoice" end
+
+    local n = tonumber(pick)
+    if not n or n ~= math.floor(n) then return nil, "NeedPick" end
+    if n < 1 or n > #choice.options then return nil, "NeedPick" end
+
+    return choice.options[n]
+end
+
 -- counts maps item full type to how many the player holds; kill progress comes off the
 -- stored record. returns have, need, satisfied.
 function QSF_Rules.objectiveProgress(obj, index, rec, counts)

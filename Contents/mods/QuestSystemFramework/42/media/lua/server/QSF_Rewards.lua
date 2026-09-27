@@ -3,6 +3,7 @@
 ----------
 
 require "QSF_Core"
+require "QSF_Rules"
 
 if not QSF.isAuthority() then return end
 
@@ -29,19 +30,28 @@ local function QSF_giveItem(player, fullType, count)
     return given
 end
 
-function QSF_Rewards.grant(player, def)
+local function QSF_giveEntry(player, entry, def)
+    local given = QSF_giveItem(player, entry.item, entry.count)
+
+    if given < entry.count then
+        QSF.warn(tostring(player:getUsername()) .. ": only " .. given .. " of " .. entry.count
+            .. " " .. entry.item .. " could be given for " .. def.key)
+    end
+end
+
+-- pick is the ordinal the player chose at turn-in, and is only ever read back through
+-- QSF_Rules.pickedReward, so it can only name an option this quest actually offers.
+function QSF_Rewards.grant(player, def, pick)
     if not player or not def then return end
 
     local rewards = def.rewards or {}
 
     for _, entry in ipairs(rewards.items or {}) do
-        local given = QSF_giveItem(player, entry.item, entry.count)
-
-        if given < entry.count then
-            QSF.warn(tostring(player:getUsername()) .. ": only " .. given .. " of " .. entry.count
-                .. " " .. entry.item .. " could be given for " .. def.key)
-        end
+        QSF_giveEntry(player, entry, def)
     end
+
+    local chosen = QSF_Rules.pickedReward(def, pick)
+    if chosen then QSF_giveEntry(player, chosen, def) end
 
     for perkName, amount in pairs(rewards.xp or {}) do
         local perk = PerkFactory.Perks.FromString(perkName)

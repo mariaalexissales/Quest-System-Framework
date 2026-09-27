@@ -48,6 +48,14 @@ function QSF_Theme.textures()
     return TEXTURES
 end
 
+-- getItemDisplayName is empty for a type the game does not know, and the full type is more
+-- use to whoever wrote the quest than a blank line would be.
+function QSF_Theme.itemName(fullType)
+    local display = getItemDisplayName(fullType)
+    if display and display ~= "" then return display end
+    return fullType
+end
+
 -- NeatUI fails silently when it has not loaded, so nothing calls truncateText directly.
 function QSF_Theme.truncate(text, maxWidth, font)
     if NeatTool and type(NeatTool.truncateText) == "function" then

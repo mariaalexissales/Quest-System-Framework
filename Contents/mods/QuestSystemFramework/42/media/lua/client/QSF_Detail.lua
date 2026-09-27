@@ -16,6 +16,7 @@ local GAP = 6
 local ICON = 12
 local MAX_OBJECTIVES = 8
 local MAX_REWARDS = 6
+local MAX_CHOICE = 6
 
 function QSF_Detail:new(x, y, width, height)
     local o = ISPanel:new(x, y, width, height)
@@ -85,6 +86,8 @@ local function QSF_reasonText(reason, detail)
         return getText("IGUI_QSF_MaxTurnins")
     elseif reason == "AlreadyDone" then
         return getText("IGUI_QSF_AlreadyDone")
+    elseif reason == "NeedPick" then
+        return getText("IGUI_QSF_NeedPick")
     end
     return nil
 end
@@ -162,28 +165,41 @@ function QSF_Detail:render()
     y = y + GAP
 
     local rewards = def.rewards and def.rewards.items or {}
-    if #rewards > 0 or (def.rewards and def.rewards.xp) then
+    local choice = def.rewards and def.rewards.choice or nil
+
+    if #rewards > 0 or choice or (def.rewards and def.rewards.xp) then
         self:drawText(getText("IGUI_QSF_Rewards"), PAD, y,
             QSF_Theme.COL_TEXT.r, QSF_Theme.COL_TEXT.g, QSF_Theme.COL_TEXT.b, 1, UIFont.Small)
         y = y + self.lineHeight + 2
 
         for i, entry in ipairs(rewards) do
             if i > MAX_REWARDS then break end
-
-            local name = entry.item
-            local display = getItemDisplayName(entry.item)
-            if display and display ~= "" then name = display end
-
-            local text = entry.count > 1 and (name .. " x" .. entry.count) or name
-            self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2, UIFont.Small), PAD + ICON + GAP, y,
-                QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
-            y = y + self.lineHeight
+            y = self:drawRewardLine(entry, y)
         end
 
         for perkName, amount in pairs(def.rewards.xp or {}) do
             self:drawText(perkName .. " +" .. amount .. " XP", PAD + ICON + GAP, y,
                 QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
             y = y + self.lineHeight
+        end
+
+        -- the pool is drawn on Available too, so the player can see what is on offer
+        -- before deciding whether the quest is worth taking.
+        if choice then
+            y = y + 2
+            self:drawText(choice.label or getText("IGUI_QSF_ChooseOne"), PAD, y,
+                QSF_Theme.COL_TEXT.r, QSF_Theme.COL_TEXT.g, QSF_Theme.COL_TEXT.b, 1, UIFont.Small)
+            y = y + self.lineHeight + 2
+
+            for i, entry in ipairs(choice.options) do
+                if i > MAX_CHOICE then
+                    self:drawText("...", PAD + ICON + GAP, y,
+                        QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+                    y = y + self.lineHeight
+                    break
+                end
+                y = self:drawRewardLine(entry, y)
+            end
         end
     end
 
@@ -206,13 +222,20 @@ function QSF_Detail:render()
     end
 end
 
+function QSF_Detail:drawRewardLine(entry, y)
+    local name = QSF_Theme.itemName(entry.item)
+    local text = entry.count > 1 and (name .. " x" .. entry.count) or name
+
+    self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
+        PAD + ICON + GAP, y, QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+
+    return y + self.lineHeight
+end
+
 function QSF_Detail:objectiveLabel(obj)
     if obj.type == "kill" then
         return getText("IGUI_QSF_KillZombies")
     end
 
-    local name = obj.item
-    local display = getItemDisplayName(obj.item)
-    if display and display ~= "" then name = display end
-    return name
+    return QSF_Theme.itemName(obj.item)
 end

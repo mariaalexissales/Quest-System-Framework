@@ -153,7 +153,9 @@ function QSF_Commands.handlers.claim(player, args)
     if now - (lastClaim[mark] or 0) < CLAIM_COOLDOWN_MS then return end
     lastClaim[mark] = now
 
-    local ok, reason = QSF_Verify.claim(player, args.key)
+    -- an ordinal into this quest's own reward pool, not an item name. anything else is
+    -- refused by QSF_Rules.pickedReward rather than clamped into a payout nobody chose.
+    local ok, reason = QSF_Verify.claim(player, args.key, args.pick)
 
     if ok then
         QSF_Net.toClient(player, "toast", { kind = "completed", key = args.key })

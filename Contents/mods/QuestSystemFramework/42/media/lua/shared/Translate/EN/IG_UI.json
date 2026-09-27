@@ -11,6 +11,10 @@
     "IGUI_QSF_Teleport": "Teleport",
     "IGUI_QSF_TeleportCooldown": "Teleport (%1h)",
     "IGUI_QSF_TeleportConfirm": "You will be teleported to the event location, proceed?",
+    "IGUI_QSF_Confirm": "Confirm",
+    "IGUI_QSF_Cancel": "Cancel",
+    "IGUI_QSF_ChooseReward": "Choose your reward",
+    "IGUI_QSF_ChooseOne": "Choose one",
     "IGUI_QSF_Objectives": "Objectives",
     "IGUI_QSF_Rewards": "Rewards",
     "IGUI_QSF_Locked": "Locked",
@@ -27,5 +31,6 @@
     "IGUI_QSF_NeedDays": "Requires %1 days survived",
     "IGUI_QSF_OnCooldown": "Available again in %1 hours",
     "IGUI_QSF_MaxTurnins": "Completed as many times as allowed",
-    "IGUI_QSF_AlreadyDone": "Already completed"
+    "IGUI_QSF_AlreadyDone": "Already completed",
+    "IGUI_QSF_NeedPick": "Pick a reward first"
 }

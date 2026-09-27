@@ -7,6 +7,7 @@ require "ISUI/ISModalDialog"
 require "QSF_Button"
 require "QSF_Row"
 require "QSF_Detail"
+require "QSF_Choice"
 require "QSF_Theme"
 require "QSF_ClientState"
 require "QSF_Rules"
@@ -169,7 +170,11 @@ function QSF_Panel:onAction()
 
     if rec and rec.status == "active" then
         if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
-            QSF_ClientState.claim(self.selected)
+            if def.rewards and def.rewards.choice then
+                self:onChoose(def)
+            else
+                QSF_ClientState.claim(self.selected)
+            end
         else
             QSF_ClientState.abandon(self.selected)
         end
@@ -177,6 +182,24 @@ function QSF_Panel:onAction()
     end
 
     QSF_ClientState.accept(self.selected)
+end
+
+-- guarded and keyed the same way the teleport prompt is: a second press would otherwise
+-- stack a second picker, and a selection that moves while one is open must not pay out a
+-- different quest.
+function QSF_Panel:onChoose(def)
+    if self.choiceModal then return end
+    self.choiceModal = QSF_Choice.show(def, self.selected, self, QSF_Panel.onConfirmChoice)
+end
+
+function QSF_Panel:onConfirmChoice(key, pick)
+    self.choiceModal = nil
+    if not key or not pick then return end
+    QSF_ClientState.claim(key, pick)
+end
+
+function QSF_Panel:onCancelChoice()
+    self.choiceModal = nil
 end
 
 -- the first confirmation in the mod. accept, abandon and turn in all still fire on the
@@ -439,6 +462,12 @@ function QSF_Panel:onResize()
 end
 
 function QSF_Panel:close()
+    -- the picker is a top-level window, so it would otherwise outlive the log it belongs to.
+    if self.choiceModal then
+        self.choiceModal:close()
+        self.choiceModal = nil
+    end
+
     local data = QSF.players[self.playerNum]
     if data and data.instance == self then
         data.x = self:getX()

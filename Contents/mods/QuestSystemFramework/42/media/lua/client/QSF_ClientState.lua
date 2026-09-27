@@ -119,8 +119,10 @@ function QSF_ClientState.abandon(key)
     QSF_Net.toServer("abandon", { key = key })
 end
 
-function QSF_ClientState.claim(key)
-    QSF_Net.toServer("claim", { key = key })
+-- pick is the reward option the player chose, and is absent on quests without a pool and
+-- on the poll's auto-claim nudge, neither of which can reach a quest that has one.
+function QSF_ClientState.claim(key, pick)
+    QSF_Net.toServer("claim", { key = key, pick = pick })
 end
 
 function QSF_ClientState.teleport(key)

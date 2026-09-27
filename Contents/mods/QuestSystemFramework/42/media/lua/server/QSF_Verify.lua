@@ -60,7 +60,7 @@ end
 
 -- the only path that completes a quest and pays it out. whatever the client claimed about
 -- its own progress is ignored and re-derived here.
-function QSF_Verify.claim(player, key)
+function QSF_Verify.claim(player, key, pick)
     if not player then return false, "Unknown" end
 
     local username = player:getUsername()
@@ -74,6 +74,13 @@ function QSF_Verify.claim(player, key)
         return false, "Changed"
     end
 
+    -- before anything is taken, so a stale or crafted pick cannot cost the player their
+    -- items and leave the quest unpaid.
+    if def.rewards and def.rewards.choice then
+        local chosen, reason = QSF_Rules.pickedReward(def, pick)
+        if not chosen then return false, reason end
+    end
+
     local counts = QSF_Verify.countItems(player, def)
     if not QSF_Rules.isComplete(def, rec, counts) then
         return false, "Incomplete"
@@ -83,7 +90,7 @@ function QSF_Verify.claim(player, key)
         return false, "Incomplete"
     end
 
-    QSF_Rewards.grant(player, def)
+    QSF_Rewards.grant(player, def, pick)
     QSF_State.complete(username, key)
     QSF_State.push(username, key)
 
