@@ -54,7 +54,8 @@ on it. Letters, digits, `_`, `.` and `-`.
 limit either way.
 
 `autoComplete` defaults to true. It's forced off when a quest consumes items, so nobody has their
-nails taken the second they pick the last one up.
+nails taken the second they pick the last one up. It's also forced off when the rewards have a
+`choice`, since there's nobody to ask which one they wanted.
 
 ## Objectives
 
@@ -163,6 +164,38 @@ the in-game map with the debug menu open.
 
 Items go straight into the inventory and nothing checks the weight, so a big payout can leave
 somebody overloaded.
+
+### Letting them pick
+
+```json
+"rewards": {
+  "items": [ { "item": "Base.Nails", "count": 20 } ],
+  "choice": {
+    "label": "Pick your tool",
+    "options": [
+      { "item": "Base.Axe", "count": 1 },
+      { "item": "Base.Sledgehammer", "count": 1 }
+    ]
+  }
+}
+```
+
+Give the rewards a `choice` and Turn In opens a picker instead of paying out straight away. The
+player picks one option, hits Confirm, and gets that on top of everything in `items` and `xp`,
+which are still paid in full. Cancel leaves the quest in progress and nothing is taken.
+
+The options are listed in the quest's details on Available too, so people can see what's on offer
+before they take it. The details show the first six, and the picker shows the lot.
+
+`label` is the heading on both. Leave it out and you get "Choose your reward" on the picker and
+"Choose one" in the details.
+
+Options are written the same way as `items`. One the game doesn't recognise gets named in the log
+and dropped, and the rest still stand. If every option is dropped, the choice goes with them and
+the quest pays out like it never had one.
+
+Past eight options the log warns you. They all still load, but the picker grows to fit rather than
+scrolling, so a long enough list will run off the screen.
 
 ## Watch out for
 

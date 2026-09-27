@@ -55,7 +55,15 @@
         "items": [
           { "item": "Base.Saw", "count": 1 },
           { "item": "Base.Nails", "count": 50 }
-        ]
+        ],
+        "choice": {
+          "label": "Take one for the road",
+          "options": [
+            { "item": "Base.Crowbar", "count": 1 },
+            { "item": "Base.PipeWrench", "count": 1 },
+            { "item": "Base.Sledgehammer", "count": 1 }
+          ]
+        }
       }
     },
 
