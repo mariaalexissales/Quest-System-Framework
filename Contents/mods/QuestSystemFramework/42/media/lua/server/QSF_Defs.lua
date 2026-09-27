@@ -36,9 +36,11 @@ function QSF_Defs.listFiles()
         end
     end
 
+    -- fileExists resolves against the game's media folders, not Zomboid/Lua, so it never sees
+    -- this file. reading it through the same resolver the load uses is the reliable check.
     if #files == 0 then
         local path = QSF.DIR .. "/" .. FALLBACK
-        if fileExists(path) then files[1] = path end
+        if QSF_Defs.readFile(path) then files[1] = path end
     end
 
     return files
