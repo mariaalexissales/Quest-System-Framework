@@ -69,13 +69,29 @@ description=Ideas, bug reports, or a quest pack you want to share? Workshop comm
 description=
 description=[hr][/hr]
 description=[h2]More From Estral[/h2]
-description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3746632343][img]https://images.steamusercontent.com/ugc/15813353898320562803/21D8A18963A880E6C1ED8AD9122946EFC6AC5A7B/[/img][/url]
-description=[b]Bundle Up! - A Packing Mod[/b]
-description=organize your excessive amounts of stuff
+description=Check out my other mods while you’re at it:
 description=
 description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3791631305][img]https://images.steamusercontent.com/ugc/11843508093091308261/A79EED3FC204D4945A5842ACFCD964749B4F39EE/[/img][/url]
 description=[b]Pinoy Pantry[/b]
-description=sarap ng Pinas in Knox Country
+description=Sarap ng Pinas in Knox Country
+description=
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3795596462][img]https://images.steamusercontent.com/ugc/9301914339822316022/1FC53AA043BDEE17026A1E48AD903EAB3B9BEF2D/[/img][/url]
+description=[b]Player Leaderboard System[/b]
+description=Have your players fight for first place, or keep track of your best lives in solo
+description=
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3799346338]
+description=[img]https://images.steamusercontent.com/ugc/17612910413526835277/09B7859AB47474217FC3504E07DA9493103F542C/[/img][/url]
+description=[b]Remove Vanilla Anything[/b]
+description=For those who are tired of seeing vanilla items in their heavily modded servers
+description=
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3746632343][img]https://images.steamusercontent.com/ugc/15570527383903825191/1C8C87277CF3CD38B6833608BD561C0E74CC97BD/[/img][/url]
+description=[b]Bundle Up! - A Packing Mod[/b]
+description=To organize all of your excessive stuff
+description=
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3800241753][img]https://images.steamusercontent.com/ugc/15205727337797343502/96977B7CB045B7166D5FCBB970FC886F2A322EE5/[/img]
+description=[/url]
+description=[b]Dead Court Deck[/b]
+description=For your [strike]scalper[/strike] collectable needs!
 description=
 description=[hr][/hr]
 tags=Build 42;Framework;Misc;Multiplayer;QoL;WIP
