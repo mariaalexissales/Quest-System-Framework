@@ -3,6 +3,11 @@
 Quests are .json files in `Zomboid/Lua/QuestFramework/`. On a server that's the server's folder,
 not the players'. As many files as you like, as many quests per file as you like.
 
+If the folder has no quests in it the first time a world starts, it gets created with a
+`quests.json` holding one starter quest. On a host that runs the server with its own data folder,
+it's in there instead, for example `server-data/Lua/QuestFramework/`. That only happens once per
+world, so delete the starter and it stays deleted.
+
 To reload without restarting, open the quest log and hit Reload. Admins only. The console prints
 what it found:
 
