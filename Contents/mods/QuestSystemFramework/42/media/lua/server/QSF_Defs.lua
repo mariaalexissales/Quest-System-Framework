@@ -18,6 +18,30 @@ QSF_Defs.loaded = false
 -- if the listing gives us nothing, this name always works.
 local FALLBACK = "quests.json"
 
+local META_TABLE = "QSF_Meta"
+
+-- ascii only: the file writer's charset is the platform's, so curly quotes can come out mangled.
+local STARTER = [[
+{
+  "quests": [
+    {
+      "key": "intro_supplies",
+      "title": "Something To Build With",
+      "description": "You won't last the week with what's in your pockets. <LINE> Bring me the basics and we'll talk about the work that pays.",
+      "order": 10,
+      "autoComplete": false,
+      "objectives": [
+        { "type": "collect", "item": "Base.Nails", "count": 10 },
+        { "type": "collect", "item": "Base.Plank", "count": 4 }
+      ],
+      "rewards": {
+        "items": [ { "item": "Base.Hammer", "count": 1 } ]
+      }
+    }
+  ]
+}
+]]
+
 function QSF_Defs.listFiles()
     local files = {}
 
@@ -66,6 +90,35 @@ function QSF_Defs.readFile(path)
     if #lines == 0 then return nil, "empty or missing" end
 
     return table.concat(lines, "\n")
+end
+
+-- nothing else ever writes to Zomboid/Lua, so without this an admin has no folder to find.
+-- once per world, or a starter they deleted on purpose would come back every restart.
+function QSF_Defs.seed()
+    local meta = ModData.getOrCreate(META_TABLE)
+    if meta.seeded then return end
+    meta.seeded = true
+
+    if #QSF_Defs.listFiles() > 0 then return end
+
+    local path = QSF.DIR .. "/" .. FALLBACK
+
+    -- there but unreadable is still somebody's file.
+    local _, readErr = QSF_Defs.readFile(path)
+    if readErr and readErr:find("^read failed") then return end
+
+    local ok, err = pcall(function()
+        local writer = getFileWriter(path, true, false)
+        writer:write(STARTER)
+        writer:close()
+    end)
+
+    if not ok then
+        QSF.warn("could not create Zomboid/Lua/" .. path .. ": " .. tostring(err))
+        return
+    end
+
+    QSF.log("created Zomboid/Lua/" .. path .. " with a starter quest")
 end
 
 -- admins write both a bare array and an object with a quests key.
@@ -164,6 +217,8 @@ function QSF_Defs.get(key)
     return QSF_Defs.all[key]
 end
 
+-- Reload goes straight to load(), so only a server start can seed.
 Events.OnInitGlobalModData.Add(function()
+    QSF_Defs.seed()
     QSF_Defs.load()
 end)
