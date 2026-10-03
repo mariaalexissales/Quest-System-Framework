@@ -166,27 +166,23 @@ function QSF_Panel:onAction()
     local def = QSF_ClientState.defs[self.selected]
     if not def then return end
 
-    local rec = QSF_ClientState.record(self.selected)
+    local state = self:stateOf(def)
 
-    if rec and rec.status == "active" then
-        if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
-            -- the button is greyed for these, but a click can beat the refresh that greys it.
-            if def.giver then return end
-
-            if def.rewards and def.rewards.choice then
-                self:onChoose(def)
-            else
-                QSF_ClientState.claim(self.selected)
-            end
-        else
-            QSF_ClientState.abandon(self.selected)
-        end
+    if state == "progress" then
+        QSF_ClientState.abandon(self.selected)
         return
     end
 
+    -- the button is greyed for these, but a click can beat the refresh that greys it.
     if def.giver then return end
 
-    QSF_ClientState.accept(self.selected)
+    if state ~= "turnin" then
+        QSF_ClientState.accept(self.selected)
+    elseif def.rewards and def.rewards.choice then
+        self:onChoose(def)
+    else
+        QSF_ClientState.claim(self.selected)
+    end
 end
 
 -- guarded and keyed the same way the teleport prompt is: a second press would otherwise
@@ -241,6 +237,11 @@ function QSF_Panel:onReload()
     QSF_ClientState.reload()
 end
 
+function QSF_Panel:stateOf(def)
+    return QSF_Rules.questState(def, QSF_ClientState.record(def.key), self.player,
+        QSF_ClientState.state, QSF_ClientState.counts())
+end
+
 function QSF_Panel:buildRows()
     local rows = {}
     local counts = QSF_ClientState.counts()
@@ -248,7 +249,7 @@ function QSF_Panel:buildRows()
     for _, def in ipairs(QSF_ClientState.ordered) do
         local rec = QSF_ClientState.record(def.key)
         local status = rec and rec.status or nil
-        local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
+        local state, reason, detail, extra = self:stateOf(def)
 
         local wanted = false
         if self.tab == "active" then
@@ -256,16 +257,13 @@ function QSF_Panel:buildRows()
         elseif self.tab == "done" then
             wanted = status == "done"
         else
-            -- not started, plus a repeatable back off cooldown.
-            wanted = status ~= "active" and (status ~= "done" or ok)
-            -- hidden means it should not even hint at itself yet.
-            if wanted and not ok and def.prereqs and def.prereqs.hidden then wanted = false end
-            -- on offer from somebody out in the world, and found by going there.
-            if def.giver then wanted = false end
+            -- not started, plus a repeatable back off cooldown. a hidden one does not even
+            -- hint at itself, and one with a giver is found by going to them.
+            wanted = (state == "available" or state == "locked") and not def.giver
         end
 
         if wanted then
-            local locked = self.tab == "available" and not ok
+            local locked = self.tab == "available" and state == "locked"
             local row = {
                 key = def.key,
                 title = def.title,
@@ -340,27 +338,23 @@ function QSF_Panel:updateAction()
         return
     end
 
-    local rec = QSF_ClientState.record(self.selected)
+    local state = self:stateOf(def)
 
-    if rec and rec.status == "active" then
-        if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
-            -- still reads Turn In, greyed, rather than swapping to Abandon: the same spot
-            -- on the same button throwing a finished quest away would be a trap. the
-            -- pane says who to take it back to.
-            self.action:setTitle(getText("IGUI_QSF_TurnIn"))
-            self.action:setEnable(not def.giver)
-        else
-            self.action:setTitle(getText("IGUI_QSF_Abandon"))
-            self.action:setEnable(true)
-        end
-        return
+    if state == "turnin" then
+        -- still reads Turn In, greyed, rather than swapping to Abandon: the same spot on
+        -- the same button throwing a finished quest away would be a trap. the pane says
+        -- who to take it back to.
+        self.action:setTitle(getText("IGUI_QSF_TurnIn"))
+        self.action:setEnable(not def.giver)
+    elseif state == "progress" then
+        self.action:setTitle(getText("IGUI_QSF_Abandon"))
+        self.action:setEnable(true)
+    else
+        -- the same answer the row greyed itself with. a giver quest only reaches this on
+        -- Completed, as a repeatable that is ready again, and is taken from the giver.
+        self.action:setTitle(getText("IGUI_QSF_Accept"))
+        self.action:setEnable(state == "available" and not def.giver)
     end
-
-    -- the same predicate the row greyed itself with. a giver quest only reaches this on
-    -- Completed, as a repeatable that is ready again, and is taken from the giver.
-    local ok = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
-    self.action:setTitle(getText("IGUI_QSF_Accept"))
-    self.action:setEnable(ok == true and not def.giver)
 end
 
 -- only reachable on a quest the player is actually on, so it is hidden outright rather

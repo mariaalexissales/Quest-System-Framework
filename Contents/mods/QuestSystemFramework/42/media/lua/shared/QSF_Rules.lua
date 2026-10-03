@@ -123,6 +123,28 @@ function QSF_Rules.canAccept(def, rec, player, state)
     return true
 end
 
+-- what a quest is to one player right now. the marker, the conversation and the log all
+-- ask this one question, so they cannot each come to their own answer.
+--   turnin     taken, and every objective met
+--   progress   taken, and not there yet
+--   available  can be taken now
+--   done       finished, and not to be taken again, or not yet
+--   hidden     locked, and not allowed to hint at itself
+--   locked     locked
+-- anything but the first three also returns what canAccept said was in the way.
+function QSF_Rules.questState(def, rec, player, state, counts)
+    if rec and rec.status == "active" then
+        return QSF_Rules.isComplete(def, rec, counts) and "turnin" or "progress"
+    end
+
+    local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, player, state)
+    if ok then return "available" end
+
+    if rec and rec.status == "done" then return "done", reason, detail, extra end
+    if def and def.prereqs and def.prereqs.hidden then return "hidden", reason, detail, extra end
+    return "locked", reason, detail, extra
+end
+
 -- the same split as canAccept: the client greys the button with this and the server
 -- authorises with it, so a greyed button and a refused command cannot disagree.
 function QSF_Rules.canTeleport(def, rec)

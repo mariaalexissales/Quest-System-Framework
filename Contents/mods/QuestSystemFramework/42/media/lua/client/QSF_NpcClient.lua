@@ -228,17 +228,14 @@ function QSF_NpcClient.status(npcKey, player)
     local available, progress = false, false
     local counts = QSF_ClientState.counts()
 
+    -- the same answer the log greys a row with, so a locked or hidden quest raises no marker.
     for _, def in ipairs(QSF_Rules.npcQuests(npcKey, QSF_ClientState.ordered)) do
-        local rec = QSF_ClientState.record(def.key)
+        local state = QSF_Rules.questState(def, QSF_ClientState.record(def.key), player,
+            QSF_ClientState.state, counts)
 
-        if rec and rec.status == "active" then
-            if QSF_Rules.isComplete(def, rec, counts) then return "turnin" end
-            progress = true
-        elseif QSF_Rules.canAccept(def, rec, player, QSF_ClientState.state) then
-            -- the same test the log greys a row with, so a locked or hidden quest
-            -- raises no marker.
-            available = true
-        end
+        if state == "turnin" then return "turnin" end
+        if state == "progress" then progress = true end
+        if state == "available" then available = true end
     end
 
     if available then return "available" end

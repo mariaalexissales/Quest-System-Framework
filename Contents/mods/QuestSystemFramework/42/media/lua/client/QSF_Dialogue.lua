@@ -36,6 +36,10 @@ local TAGS = {
     locked = "IGUI_QSF_TagLocked",
 }
 
+-- what the list shows. finished and not repeatable has nothing left to say, and a hidden
+-- quest is not to hint at itself.
+local LISTED = { turnin = true, progress = true, available = true, locked = true }
+
 function QSF_Dialogue:new(x, y, player, npc)
     local o = ISCollapsableWindow:new(x, y, WIDTH, HEIGHT)
     setmetatable(o, self)
@@ -209,27 +213,19 @@ function QSF_Dialogue:layout()
     end
 end
 
--- what the list shows, sorted the way the log sorts. it follows the log's Available tab:
--- something in hand, something on offer, or something locked that is allowed to hint at
--- itself. finished and not repeatable has nothing left to say.
+function QSF_Dialogue:stateOf(def)
+    return QSF_Rules.questState(def, QSF_ClientState.record(def.key), self.player,
+        QSF_ClientState.state, QSF_ClientState.counts())
+end
+
+-- sorted the way the log sorts.
 function QSF_Dialogue:entries()
     local out = {}
-    local counts = QSF_ClientState.counts()
 
     for _, def in ipairs(QSF_Rules.npcQuests(self.npcKey, QSF_ClientState.ordered)) do
-        local rec = QSF_ClientState.record(def.key)
-        local status = rec and rec.status or nil
-        local state = nil
+        local state = self:stateOf(def)
 
-        if status == "active" then
-            state = QSF_Rules.isComplete(def, rec, counts) and "turnin" or "progress"
-        elseif QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state) then
-            state = "available"
-        elseif status ~= "done" and not (def.prereqs and def.prereqs.hidden) then
-            state = "locked"
-        end
-
-        if state then
+        if LISTED[state] then
             out[#out + 1] = { key = def.key, title = def.title, state = state }
         end
     end
@@ -261,18 +257,16 @@ function QSF_Dialogue:showList(npc)
 end
 
 function QSF_Dialogue:showQuest(def)
-    local rec = QSF_ClientState.record(def.key)
+    local state = self:stateOf(def)
     local lines = def.dialogue or {}
     local text, action = nil, nil
 
-    if rec and rec.status == "active" then
-        if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
-            text = lines.complete or getText("IGUI_QSF_Npc_Complete")
-            action = "turnin"
-        else
-            text = lines.progress or getText("IGUI_QSF_Npc_Progress")
-        end
-    elseif QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state) then
+    if state == "turnin" then
+        text = lines.complete or getText("IGUI_QSF_Npc_Complete")
+        action = "turnin"
+    elseif state == "progress" then
+        text = lines.progress or getText("IGUI_QSF_Npc_Progress")
+    elseif state == "available" then
         -- a quest written before it had a giver still has its description to say.
         text = lines.offer or (def.description ~= "" and def.description) or getText("IGUI_QSF_Npc_Offer")
         action = "accept"
