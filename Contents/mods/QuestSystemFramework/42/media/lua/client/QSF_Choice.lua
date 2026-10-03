@@ -119,8 +119,8 @@ end
 function QSF_Choice:render()
     ISPanel.render(self)
 
-    self:drawText(QSF_Theme.truncate(self.header, self.width - PAD * 2, UIFont.Medium), PAD, PAD,
-        QSF_Theme.COL_TITLE.r, QSF_Theme.COL_TITLE.g, QSF_Theme.COL_TITLE.b, 1, UIFont.Medium)
+    QSF_Theme.text(self, QSF_Theme.truncate(self.header, self.width - PAD * 2, UIFont.Medium), PAD, PAD,
+        QSF_Theme.COL_TITLE, UIFont.Medium)
 end
 
 -- centred on the screen the way the teleport prompt is, and handed back so the caller can

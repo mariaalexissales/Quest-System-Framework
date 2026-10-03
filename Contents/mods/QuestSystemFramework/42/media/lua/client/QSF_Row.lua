@@ -82,7 +82,7 @@ function QSF_Row:render()
 
     if counter ~= "" then
         local col = row.locked and QSF_Theme.COL_DIM or QSF_Theme.COL_COUNT
-        self:drawText(counter, self.width - PAD - counterWidth, LINE_ONE, col.r, col.g, col.b, 1, UIFont.Small)
+        QSF_Theme.text(self, counter, self.width - PAD - counterWidth, LINE_ONE, col)
     end
 
     local subtitle = row.subtitle

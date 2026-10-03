@@ -384,8 +384,7 @@ function QSF_Panel:render()
     if #self.rows == 0 then
         local _, listY, _, listW = self:bands()
         local text = QSF_ClientState.ready and getText("IGUI_QSF_Empty_" .. self.tab) or getText("IGUI_QSF_Connecting")
-        self:drawText(text, PAD + 10, listY + 10,
-            QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+        QSF_Theme.text(self, text, PAD + 10, listY + 10, QSF_Theme.COL_DIM)
     end
 end
 

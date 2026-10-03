@@ -60,6 +60,11 @@ function QSF_Theme.attach(parent, child, anchors)
     return child
 end
 
+-- text in one of the colours above. small, unless it says otherwise.
+function QSF_Theme.text(panel, text, x, y, colour, font)
+    panel:drawText(text, x, y, colour.r, colour.g, colour.b, 1, font or UIFont.Small)
+end
+
 -- rich text with no chrome and no margins, as tall as what is put in it. it is what gives
 -- a description or a line of dialogue <LINE> and <RGB:> for free.
 function QSF_Theme.richText(parent, x, y, width, height)

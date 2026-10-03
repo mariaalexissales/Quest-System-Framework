@@ -196,23 +196,23 @@ end
 function QSF_NpcPlace:render()
     ISPanel.render(self)
 
-    self:drawText(getText("IGUI_QSF_Place_Title"), PAD, PAD,
-        QSF_Theme.COL_TITLE.r, QSF_Theme.COL_TITLE.g, QSF_Theme.COL_TITLE.b, 1, UIFont.Medium)
+    QSF_Theme.text(self, getText("IGUI_QSF_Place_Title"), PAD, PAD,
+        QSF_Theme.COL_TITLE, UIFont.Medium)
 
     -- the tile, written the way it would be in a file, for whoever copies it into one.
-    self:drawText(self.tileX .. ", " .. self.tileY .. ", " .. self.tileZ, PAD, PAD + self.headerHeight + 2,
-        QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+    QSF_Theme.text(self, self.tileX .. ", " .. self.tileY .. ", " .. self.tileZ, PAD, PAD + self.headerHeight + 2,
+        QSF_Theme.COL_COUNT)
 
     local nudge = (ROW - self.lineHeight) / 2
     for _, name in ipairs(ROWS) do
-        self:drawText(getText("IGUI_QSF_Field_" .. name), PAD, self.rowY[name] + nudge,
-            QSF_Theme.COL_TEXT.r, QSF_Theme.COL_TEXT.g, QSF_Theme.COL_TEXT.b, 1, UIFont.Small)
+        QSF_Theme.text(self, getText("IGUI_QSF_Field_" .. name), PAD, self.rowY[name] + nudge,
+            QSF_Theme.COL_TEXT)
     end
 
     if self.problem then
         local y = self.height - PAD - BUTTON_HEIGHT - GAP - self.lineHeight
-        self:drawText(QSF_Theme.truncate(getText(self.problem), self.width - PAD * 2, UIFont.Small), PAD, y,
-            QSF_Theme.COL_ACTIVE.r, QSF_Theme.COL_ACTIVE.g, QSF_Theme.COL_ACTIVE.b, 1, UIFont.Small)
+        QSF_Theme.text(self, QSF_Theme.truncate(getText(self.problem), self.width - PAD * 2, UIFont.Small), PAD, y,
+            QSF_Theme.COL_ACTIVE)
     end
 end
 

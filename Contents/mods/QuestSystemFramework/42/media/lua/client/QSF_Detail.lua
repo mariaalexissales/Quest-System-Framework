@@ -106,7 +106,7 @@ function QSF_Detail:render()
 
     if not def then
         local text = QSF_ClientState.ready and getText("IGUI_QSF_PickAQuest") or getText("IGUI_QSF_Connecting")
-        self:drawText(text, PAD, PAD, QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+        QSF_Theme.text(self, text, PAD, PAD, QSF_Theme.COL_DIM)
         if self.body then self.body:setVisible(false) end
         return
     end
@@ -118,12 +118,12 @@ function QSF_Detail:render()
     local y = PAD
 
     local title = QSF_Theme.truncate(def.title, self.width - PAD * 2, UIFont.Medium)
-    self:drawText(title, PAD, y, QSF_Theme.COL_TITLE.r, QSF_Theme.COL_TITLE.g, QSF_Theme.COL_TITLE.b, 1, UIFont.Medium)
+    QSF_Theme.text(self, title, PAD, y, QSF_Theme.COL_TITLE, UIFont.Medium)
     y = y + self.titleHeight + 2
 
     local where = QSF_Location.describe(def.location)
     if where then
-        self:drawText(where, PAD, y, QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+        QSF_Theme.text(self, where, PAD, y, QSF_Theme.COL_COUNT)
         y = y + self.lineHeight
     end
 
@@ -132,8 +132,8 @@ function QSF_Detail:render()
     if giver then
         local active = rec and rec.status == "active"
         local text = getText(active and "IGUI_QSF_GiverReturn" or "IGUI_QSF_GiverOffer", giver.name)
-        self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2, UIFont.Small), PAD, y,
-            QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+        QSF_Theme.text(self, QSF_Theme.truncate(text, self.width - PAD * 2, UIFont.Small), PAD, y,
+            QSF_Theme.COL_COUNT)
         y = y + self.lineHeight
     end
 
@@ -147,13 +147,12 @@ function QSF_Detail:render()
 
     local textures = QSF_Theme.textures()
 
-    self:drawText(getText("IGUI_QSF_Objectives"), PAD, y,
-        QSF_Theme.COL_TEXT.r, QSF_Theme.COL_TEXT.g, QSF_Theme.COL_TEXT.b, 1, UIFont.Small)
+    QSF_Theme.text(self, getText("IGUI_QSF_Objectives"), PAD, y, QSF_Theme.COL_TEXT)
     y = y + self.lineHeight + 2
 
     for i, obj in ipairs(def.objectives) do
         if i > MAX_OBJECTIVES then
-            self:drawText("...", PAD + ICON + GAP, y, QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+            QSF_Theme.text(self, "...", PAD + ICON + GAP, y, QSF_Theme.COL_DIM)
             y = y + self.lineHeight
             break
         end
@@ -172,8 +171,8 @@ function QSF_Detail:render()
         local scope = obj.location and QSF_Location.describe(obj.location) or nil
         if scope and scope ~= where then text = text .. "  (" .. scope .. ")" end
 
-        self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
-            PAD + ICON + GAP, y, col.r, col.g, col.b, 1, UIFont.Small)
+        QSF_Theme.text(self, QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
+            PAD + ICON + GAP, y, col)
         y = y + self.lineHeight + 2
     end
 
@@ -183,8 +182,7 @@ function QSF_Detail:render()
     local choice = def.rewards and def.rewards.choice or nil
 
     if #rewards > 0 or choice or (def.rewards and def.rewards.xp) then
-        self:drawText(getText("IGUI_QSF_Rewards"), PAD, y,
-            QSF_Theme.COL_TEXT.r, QSF_Theme.COL_TEXT.g, QSF_Theme.COL_TEXT.b, 1, UIFont.Small)
+        QSF_Theme.text(self, getText("IGUI_QSF_Rewards"), PAD, y, QSF_Theme.COL_TEXT)
         y = y + self.lineHeight + 2
 
         for i, entry in ipairs(rewards) do
@@ -194,8 +192,7 @@ function QSF_Detail:render()
 
         for perkName, amount in pairs(def.rewards.xp or {}) do
             local text = getText("IGUI_QSF_RewardXp", QSF_Theme.perkName(perkName), tostring(amount))
-            self:drawText(text, PAD + ICON + GAP, y,
-                QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+            QSF_Theme.text(self, text, PAD + ICON + GAP, y, QSF_Theme.COL_COUNT)
             y = y + self.lineHeight
         end
 
@@ -203,14 +200,13 @@ function QSF_Detail:render()
         -- before deciding whether the quest is worth taking.
         if choice then
             y = y + 2
-            self:drawText(choice.label or getText("IGUI_QSF_ChooseOne"), PAD, y,
-                QSF_Theme.COL_TEXT.r, QSF_Theme.COL_TEXT.g, QSF_Theme.COL_TEXT.b, 1, UIFont.Small)
+            QSF_Theme.text(self, choice.label or getText("IGUI_QSF_ChooseOne"), PAD, y,
+                QSF_Theme.COL_TEXT)
             y = y + self.lineHeight + 2
 
             for i, entry in ipairs(choice.options) do
                 if i > MAX_CHOICE then
-                    self:drawText("...", PAD + ICON + GAP, y,
-                        QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+                    QSF_Theme.text(self, "...", PAD + ICON + GAP, y, QSF_Theme.COL_DIM)
                     y = y + self.lineHeight
                     break
                 end
@@ -225,15 +221,14 @@ function QSF_Detail:render()
         local text = QSF_reasonText(reason, detail, extra)
         if text then
             y = y + GAP
-            self:drawText(getText("IGUI_QSF_Locked"), PAD, y,
-                QSF_Theme.COL_TEXT.r, QSF_Theme.COL_TEXT.g, QSF_Theme.COL_TEXT.b, 1, UIFont.Small)
+            QSF_Theme.text(self, getText("IGUI_QSF_Locked"), PAD, y, QSF_Theme.COL_TEXT)
             y = y + self.lineHeight + 2
 
             if textures.iconFalse then
                 self:drawTextureScaledAspect(textures.iconFalse, PAD, y + 1, ICON, ICON, 1, 1, 1, 1)
             end
-            self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
-                PAD + ICON + GAP, y, QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+            QSF_Theme.text(self, QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
+                PAD + ICON + GAP, y, QSF_Theme.COL_DIM)
             y = y + self.lineHeight
         end
     end
@@ -246,8 +241,8 @@ function QSF_Detail:drawRewardLine(entry, y)
     local name = QSF_Theme.itemName(entry.item)
     local text = entry.count > 1 and (name .. " x" .. entry.count) or name
 
-    self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
-        PAD + ICON + GAP, y, QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+    QSF_Theme.text(self, QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
+        PAD + ICON + GAP, y, QSF_Theme.COL_COUNT)
 
     return y + self.lineHeight
 end

@@ -8,6 +8,7 @@ require "QSF_ClientState"
 require "QSF_NpcClient"
 require "QSF_Dialogue"
 require "QSF_NpcPlace"
+require "QSF_Theme"
 require "ISUI/ISModalDialog"
 
 QSF = QSF or {}
