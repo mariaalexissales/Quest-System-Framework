@@ -13,13 +13,20 @@ end
 
 QSF_Rules.worldHours = QSF_worldHours
 
+-- the engine's perk for a name out of a quest file, or nil. FromString never answers nil
+-- itself: a name it does not know comes back as the MAX placeholder, which no character
+-- has a level in.
+function QSF_Rules.perk(name)
+    local perk = PerkFactory.Perks.FromString(name)
+    if not perk or perk == PerkFactory.Perks.MAX then return nil end
+    return perk
+end
+
 local function QSF_perkLevel(player, perkName)
-    local perk = PerkFactory.Perks.FromString(perkName)
+    local perk = QSF_Rules.perk(perkName)
     if not perk then return 0 end
     return player:getPerkLevel(perk)
 end
-
-QSF_Rules.perkLevel = QSF_perkLevel
 
 -- an npc is a zombie underneath, and this is the one thing about a zombie that reaches
 -- every client and survives a save. bit 15 only says the hat has come off, and would

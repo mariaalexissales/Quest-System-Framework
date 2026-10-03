@@ -3,6 +3,7 @@
 ----------
 
 require "QSF_Core"
+require "QSF_Rules"
 require "QSF_Text"
 
 QSF = QSF or {}
@@ -23,12 +24,9 @@ local function QSF_itemExists(fullType)
     return item ~= nil
 end
 
--- FromString never answers nil. a name it does not know comes back as the MAX placeholder,
--- which no character has a level in, so a quest asking for it would be locked for good.
 local function QSF_perkFromName(name)
-    local ok, perk = pcall(function() return PerkFactory.Perks.FromString(name) end)
+    local ok, perk = pcall(QSF_Rules.perk, name)
     if not ok then return nil, true end
-    if perk == PerkFactory.Perks.MAX then return nil, false end
     return perk, false
 end
 

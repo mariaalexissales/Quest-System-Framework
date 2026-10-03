@@ -54,7 +54,7 @@ function QSF_Rewards.grant(player, def, pick)
     if chosen then QSF_giveEntry(player, chosen, def) end
 
     for perkName, amount in pairs(rewards.xp or {}) do
-        local perk = PerkFactory.Perks.FromString(perkName)
+        local perk = QSF_Rules.perk(perkName)
         if perk then player:getXp():AddXP(perk, amount) end
     end
 end
