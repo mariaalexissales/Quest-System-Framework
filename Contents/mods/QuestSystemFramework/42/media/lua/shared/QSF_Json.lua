@@ -98,8 +98,17 @@ function Parser:lineAt(pos)
     return line
 end
 
+-- nothing in the parser raises. the game logs every error() with a full java stack trace,
+-- caught or not, and stops on it under Break On Error, so one mistyped quest file used to
+-- look like a crash. a failure is written down instead and every caller backs out.
+--
+-- null is a legal value and decodes to nil, so nil cannot be what says a parse failed:
+-- self.err is. the first one is kept, since that is the one at the mistake.
 function Parser:fail(message)
-    error("line " .. self:lineAt(self.pos) .. ": " .. message, 0)
+    if not self.err then
+        self.err = "line " .. self:lineAt(self.pos) .. ": " .. message
+    end
+    return nil
 end
 
 function Parser:skip()
@@ -116,7 +125,7 @@ function Parser:parseString()
     local out = {}
 
     while true do
-        if self.pos > self.len then self:fail("unterminated string") end
+        if self.pos > self.len then return self:fail("unterminated string") end
         local c = self.text:sub(self.pos, self.pos)
 
         if c == '"' then
@@ -127,14 +136,14 @@ function Parser:parseString()
             if esc == "u" then
                 local hex = self.text:sub(self.pos + 2, self.pos + 5)
                 local code = tonumber(hex, 16)
-                if not code then self:fail("bad unicode escape") end
+                if not code then return self:fail("bad unicode escape") end
                 out[#out + 1] = QSF_utf8(code)
                 self.pos = self.pos + 6
             elseif ESCAPES[esc] then
                 out[#out + 1] = ESCAPES[esc]
                 self.pos = self.pos + 2
             else
-                self:fail("unknown escape character")
+                return self:fail("unknown escape character")
             end
         else
             out[#out + 1] = c
@@ -146,7 +155,7 @@ end
 function Parser:parseNumber()
     local span = self.text:match("^%-?%d+%.?%d*[eE]?[%+%-]?%d*", self.pos)
     local value = span and tonumber(span)
-    if not value then self:fail("bad number") end
+    if not value then return self:fail("bad number") end
     self.pos = self.pos + #span
     return value
 end
@@ -160,6 +169,8 @@ function Parser:parseArray()
 
     while true do
         local value = self:parseValue()
+        if self.err then return nil end
+
         -- compacting beats a hole that breaks every ipairs and # downstream.
         if value ~= nil then out[#out + 1] = value end
 
@@ -171,7 +182,7 @@ function Parser:parseArray()
             self.pos = self.pos + 1
             return out
         else
-            self:fail("expected a comma or a closing bracket in array")
+            return self:fail("expected a comma or a closing bracket in array")
         end
     end
 end
@@ -185,15 +196,18 @@ function Parser:parseObject()
 
     while true do
         self:skip()
-        if self:peek() ~= '"' then self:fail("expected a quoted key") end
+        if self:peek() ~= '"' then return self:fail("expected a quoted key") end
         local key = self:parseString()
+        if self.err then return nil end
 
         self:skip()
-        if self:peek() ~= ":" then self:fail("expected a colon after key " .. key) end
+        if self:peek() ~= ":" then return self:fail("expected a colon after key " .. key) end
         self.pos = self.pos + 1
 
         -- null decodes to nil, so the key is absent and the default applies.
-        out[key] = self:parseValue()
+        local value = self:parseValue()
+        if self.err then return nil end
+        out[key] = value
 
         self:skip()
         local c = self:peek()
@@ -203,7 +217,7 @@ function Parser:parseObject()
             self.pos = self.pos + 1
             return out
         else
-            self:fail("expected a comma or a closing brace in object")
+            return self:fail("expected a comma or a closing brace in object")
         end
     end
 end
@@ -212,7 +226,7 @@ function Parser:parseValue()
     self:skip()
     local c = self:peek()
 
-    if c == "" then self:fail("unexpected end of file") end
+    if c == "" then return self:fail("unexpected end of file") end
     if c == "{" then return self:parseObject() end
     if c == "[" then return self:parseArray() end
     if c == '"' then return self:parseString() end
@@ -231,7 +245,7 @@ function Parser:parseValue()
     end
     if c:match("[%-%d]") then return self:parseNumber() end
 
-    self:fail("unexpected character " .. c)
+    return self:fail("unexpected character " .. c)
 end
 
 -- returns the value, or nil plus a message. never raises.
@@ -242,8 +256,12 @@ function QSF_Json.decode(text)
 
     local parser = Parser.new(QSF_prepass(text))
 
+    -- a mistake in the file comes back through parser.err and never reaches this pcall.
+    -- it is only here for a mistake in the parser, which should cost a file, not a server.
     local ok, result = pcall(function()
         local value = parser:parseValue()
+        if parser.err then return nil end
+
         parser:skip()
         if parser.pos <= parser.len then
             parser:fail("trailing content after the top-level value")
@@ -252,6 +270,7 @@ function QSF_Json.decode(text)
     end)
 
     if not ok then return nil, tostring(result) end
+    if parser.err then return nil, parser.err end
     if result == nil then return nil, "top-level value is null" end
     return result
 end
