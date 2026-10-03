@@ -202,6 +202,115 @@ the quest pays out like it never had one.
 Past eight options the log warns you. They all still load, but the picker grows to fit rather than
 scrolling, so a long enough list will run off the screen.
 
+## NPCs
+
+```json
+{
+  "npcs": [
+    {
+      "key": "old_joe",
+      "name": "Old Joe",
+      "x": 10629, "y": 9312, "z": 0,
+      "outfit": "Farmer",
+      "greeting": "You look like you can swing a hammer."
+    }
+  ]
+}
+```
+
+An NPC stands on its tile and hands out quests. Players right-click on or beside it and pick
+Talk. It can't be hurt, zombies walk straight past it, and it doesn't move. If something does shift
+it, a car for instance, it's back on its tile a couple of seconds later.
+
+They go in the same folder as quests, in any `.json`, under `npcs`. A file can hold both lists or
+just one. `npcs.json` in this folder is one to copy.
+
+`key`, `x` and `y` are the only things you have to write.
+
+`key` is what a quest points at, so the same rules as a quest key. Renaming one cuts its quests
+loose.
+
+`name` is what players see. Leave it out and they see the key.
+
+`z` is the floor, default 0.
+
+`outfit` is a vanilla zombie outfit, default `Generic01`. A few that work for either sex: `Farmer`,
+`Police`, `Doctor`, `Fireman`, `Ranger`, `Camper`, `Trader`, `Evacuee`, `Teacher`, `Chef`,
+`Biker`, `Classy`, `Young`, `Retiree`. The debug menu's horde tool lists every one of them.
+
+`female` is true or false, default false. Some outfits only exist for one sex: `Priest`,
+`Mechanic` and `Hunter` are men's, `Generic_Skirt` and `OfficeWorkerSkirt` are women's. Ask for
+one the wrong way round and the log tells you and the NPC gets `Generic01` instead.
+
+`skin` is 1 to 5, light to dark, default 1.
+
+`facing` is a compass point, `N` `NE` `E` `SE` `S` `SW` `W` `NW`. Default `SE`, which is toward
+the camera.
+
+`greeting` is what they say when the conversation opens. `<LINE>` and `<RGB:r,g,b>` work here too.
+
+An NPC keeps the same clothes for good, across restarts and for every player. Changing its
+`outfit` or `female` re-rolls them. Moving it doesn't.
+
+### Giving quests
+
+```json
+{
+  "key": "intro_supplies",
+  "title": "Something To Build With",
+  "giver": "old_joe",
+  "dialogue": {
+    "offer": "Bring me nails and planks and we'll talk about the work that pays.",
+    "progress": "Still short. Nails and planks.",
+    "complete": "That'll do. Here."
+  },
+  "objectives": [ { "type": "collect", "item": "Base.Nails", "count": 10 } ]
+}
+```
+
+Give a quest a `giver` and it belongs to that NPC. It leaves the Available tab, and the only way to
+take it or hand it in is to stand within three tiles of the NPC, on the same floor, and talk. The
+server checks that itself. Once taken it's in the log under In Progress like any other, and it can
+be abandoned from there.
+
+`autoComplete` is off for these whatever you write, since handing it in is the point.
+
+`dialogue` is what the NPC says about that quest. `offer` before it's taken, `progress` while it's
+underway, `complete` when it's ready to hand in. All three are optional. With no `offer` they say
+the quest's `description`, and the other two have stock lines.
+
+Everything else about the quest works as it did. Prereqs still lock it, and a locked quest shows
+in the conversation greyed with the reason, unless it's `hidden`.
+
+A `giver` that names nobody gets a warning in the log, and the quest goes back to being an
+ordinary one in the log rather than being stuck where nobody can reach it.
+
+### The marker
+
+A gold `!` over an NPC's head means they have something new for you. A gold `?` means something of
+theirs is ready to hand in. A grey `?` means you're part-way through one. Nothing means nothing.
+
+Each player sees their own.
+
+### Placing one in game
+
+Right-click a tile and pick Place quest NPC here. Fill in a name, pick an outfit, confirm. They
+appear on the spot. Leave the key empty and it's made from the name, so "Old Joe" becomes
+`old_joe`.
+
+On a server that's admins only. In singleplayer it needs debug mode on, so it isn't sitting in
+everybody's right-click menu.
+
+These are written to `npcs_placed.json` in the quest folder. That file belongs to the game: it
+rewrites the whole thing every time one is placed or removed. You can edit it by hand and the
+edits are kept, but your own files are never touched, so anything you want comments in belongs in
+one of those.
+
+An NPC placed this way can be removed by right-clicking it. One you wrote into a file yourself
+comes out of that file.
+
+To make a placed NPC hand out quests, put its key in a quest's `giver` and hit Reload.
+
 ## Watch out for
 
 Item types are full types. `Base.Nails`, not `Nails`. Anything the game doesn't recognise gets
@@ -215,6 +324,18 @@ A prereq loop, where A needs B and B needs A, gets caught at load. Left alone it
 quests permanently unavailable and nothing would ever tell you why.
 
 Kills count where the zombie died, not where the player was standing.
+
+An NPC is a zombie underneath, dressed up and held still. Anything that acts on every zombie acts
+on it too. Clearing zombies with an admin command takes the NPCs with them, and they're back in a
+few seconds. Another mod's armed survivors will shoot at one, and waste the bullets. Hitting one
+never counts toward a kill objective.
+
+An NPC's tile has to be loaded for it to exist, so the first player into an area sees it appear a
+moment after they arrive. Chunks load well ahead of where anyone can see, so in practice it's there
+by the time they get to it.
+
+A conversation lists the first ten things an NPC has for a player. Past that the rest don't fit.
+Give the eleventh to somebody else.
 
 A file with a syntax error in it logs a warning naming the file and the line, and then, because of
 how the game's Lua runtime reports errors, a long Java stack trace as well. It looks like a crash.
