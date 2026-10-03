@@ -302,7 +302,7 @@ local function QSF_write(value, depth, rank, out)
         out[#out + 1] = value and "true" or "false"
     elseif kind ~= "table" then
         out[#out + 1] = "null"
-    elseif next(value) == nil then
+    elseif table.isempty(value) then
         -- lua cannot tell an empty list from an empty object. everything this writes
         -- that can be empty is a list.
         out[#out + 1] = "[]"

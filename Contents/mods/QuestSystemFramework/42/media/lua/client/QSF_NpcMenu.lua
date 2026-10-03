@@ -120,7 +120,7 @@ local function QSF_onPreFill(playerNum, context, worldobjects, test)
     local square = QSF_clickedSquare(worldobjects)
     if not square then return end
 
-    local npc = next(QSF_ClientState.npcs) and QSF_NpcMenu.npcNear(square) or nil
+    local npc = QSF_NpcMenu.npcNear(square)
     local canPlace = QSF_canPlace(getSpecificPlayer(playerNum))
 
     if not npc and not canPlace then return end

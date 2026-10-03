@@ -148,7 +148,8 @@ end
 -- back to an ordinary zombie. its looks are the engine's to rebuild.
 local function QSF_release(zombie)
     dressed[zombie] = nil
-    hasDressed = next(dressed) ~= nil
+    -- the game's lua has no next(). this is its own way of asking.
+    hasDressed = not table.isempty(dressed)
 
     zombie:setVariable(FLAG, false)
     zombie:setUseless(false)
