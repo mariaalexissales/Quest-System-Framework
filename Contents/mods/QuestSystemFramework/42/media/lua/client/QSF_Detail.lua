@@ -242,8 +242,12 @@ function QSF_Detail:render()
             end
             self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
                 PAD + ICON + GAP, y, QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+            y = y + self.lineHeight
         end
     end
+
+    -- how far down it got, for a window that has to make room for all of it.
+    self.contentHeight = y + PAD
 end
 
 function QSF_Detail:drawRewardLine(entry, y)

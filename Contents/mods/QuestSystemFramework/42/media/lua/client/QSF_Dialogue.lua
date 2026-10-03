@@ -17,8 +17,8 @@ QSF = QSF or {}
 
 QSF_Dialogue = ISCollapsableWindow:derive("QSF_Dialogue")
 
-local WIDTH = 440
-local HEIGHT = 520
+local WIDTH = 400
+local HEIGHT = 320
 local PAD = 12
 local GAP = 8
 local OPTION_HEIGHT = 26
@@ -26,9 +26,9 @@ local OPTION_GAP = 4
 local BUTTON_HEIGHT = 24
 local REACH_TICKS = 15
 
--- the list is laid out rather than scrolled, and this many still fit under a greeting
--- of a few lines.
-local MAX_OPTIONS = 10
+-- the list scrolls, so it only ever asks the window for three rows. a greeting long enough
+-- to leave it less makes the window taller instead.
+local MIN_LIST = 3 * (OPTION_HEIGHT + OPTION_GAP) + OPTION_GAP
 
 local TAGS = {
     turnin = "IGUI_QSF_TagReady",
@@ -49,7 +49,6 @@ function QSF_Dialogue:new(x, y, player, npc)
     -- nil is the list of what the npc has to say. a key is one quest opened up.
     o.questKey = nil
     o.primaryAction = nil
-    o.options = {}
     -- every line already spoken over the npc's head in this conversation.
     o.said = {}
     o.revision = -1
@@ -81,8 +80,48 @@ function QSF_Dialogue:footerY()
     return self.height - PAD - BUTTON_HEIGHT
 end
 
+-- the quests on offer, however many there are. NeatUI's list builds only as many buttons
+-- as fit and hands them round as it scrolls, so a button is whichever quest it was last
+-- given.
+function QSF_Dialogue:createList()
+    self.list = NIVirtualScrollView:new(PAD, 0, self.width - PAD * 2, MIN_LIST)
+    self.list:initialise()
+    self.list:instantiate()
+    -- setOnCreateItem after instantiate: createChildren already ran initializePool once
+    -- with no callback set and quietly did nothing.
+    self.list:setOnCreateItem(function()
+        local button = QSF_Button:new(0, 0, self.list:getWidth(), OPTION_HEIGHT, "", self, QSF_Dialogue.onOption)
+        -- the pool calls initialise for us but not instantiate.
+        button:instantiate()
+        return button
+    end)
+    self.list:setOnUpdateItem(function(button, entry)
+        self:fillOption(button, entry)
+    end)
+    self.list:setConfig(OPTION_HEIGHT, OPTION_GAP)
+    self:addChild(self.list)
+end
+
+function QSF_Dialogue:fillOption(button, entry)
+    -- the scroll bar is drawn over the list's right edge, and only when there is
+    -- something to scroll.
+    local width = self.list:getWidth()
+    local bar = self.list.vscroll
+    if bar and (self.list.maxScrollOffset or 0) > 0 then width = width - bar:getWidth() - 2 end
+
+    local title = entry.title
+    if TAGS[entry.state] then title = title .. "  " .. getText(TAGS[entry.state]) end
+
+    button:setWidth(width)
+    button:setTitle(QSF_Theme.truncate(title, width - 24, UIFont.Small))
+    button.questKey = entry.key
+    -- the one worth walking back for is lit the way a picked row is.
+    button.selected = entry.state == "turnin"
+end
+
 function QSF_Dialogue:createChildren()
     ISCollapsableWindow.createChildren(self)
+    self:createList()
 
     -- rich text, so a greeting gets <LINE> and <RGB:> the way a description does.
     self.speech = ISRichTextPanel:new(PAD, self:titleBarHeight() + PAD, self.width - PAD * 2, 40)
@@ -135,11 +174,39 @@ function QSF_Dialogue:say(text, def)
 end
 
 
-function QSF_Dialogue:clearOptions()
-    for _, button in ipairs(self.options) do
-        self:removeChild(button)
+-- the window is as tall as what it is showing needs, and never shorter than it opens. the
+-- list scrolls, so it asks for little. a quest's details do not, and need as much as the
+-- pane took the last time it drew them.
+function QSF_Dialogue:layout()
+    local top = self.speech:getY() + self.speech:getHeight() + GAP
+    local needed = self.questKey and (self.detail.contentHeight or 0) or MIN_LIST
+    local height = math.max(HEIGHT, top + needed + GAP + BUTTON_HEIGHT + PAD)
+
+    if height ~= self.height then
+        self:setHeight(height)
+
+        -- growing off the bottom of the screen would put the buttons out of reach.
+        local screen = getCore():getScreenHeight()
+        if self:getY() + height > screen then self:setY(math.max(0, screen - height)) end
     end
-    self.options = {}
+
+    local footer = self:footerY()
+    self.back:setY(footer)
+    self.primary:setY(footer)
+
+    local room = math.max(0, footer - GAP - top)
+    self.detail:setY(top)
+    self.detail:setHeight(room)
+
+    -- hidden while a quest is open, and its pool is thrown away and rebuilt by a
+    -- reconfigure, so it is only told when its height has really moved.
+    if self.questKey then return end
+
+    self.list:setY(top)
+    if self.list:getHeight() ~= room then
+        self.list:setHeight(room)
+        self.list:setConfig(OPTION_HEIGHT, OPTION_GAP)
+    end
 end
 
 -- what the list shows, sorted the way the log sorts. it follows the log's Available tab:
@@ -179,29 +246,18 @@ function QSF_Dialogue:showList(npc)
         self:say(getText("IGUI_QSF_Npc_Nothing"))
     end
 
-    local y = self.speech:getY() + self.speech:getHeight() + GAP * 2
-    local width = self.width - PAD * 2
-
-    for index, entry in ipairs(entries) do
-        if index > MAX_OPTIONS then break end
-
-        local title = entry.title
-        if TAGS[entry.state] then title = title .. "  " .. getText(TAGS[entry.state]) end
-
-        local button = QSF_Button:new(PAD, y, width, OPTION_HEIGHT,
-            QSF_Theme.truncate(title, width - 24, UIFont.Small), self, QSF_Dialogue.onOption)
-        button.questKey = entry.key
-        -- the one worth walking back for is lit the way a picked row is.
-        button.selected = entry.state == "turnin"
-        self.options[#self.options + 1] = self:attach(button)
-
-        y = y + OPTION_HEIGHT + OPTION_GAP
-    end
-
     self.detail:setVisible(false)
+    self.list:setVisible(true)
     self.primary:setVisible(false)
     self.primaryAction = nil
     self.back:setTitle(getText("IGUI_QSF_Goodbye"))
+
+    self:layout()
+
+    -- after the layout, so it knows how tall it is before it works out whether it scrolls.
+    -- forced, because the list only hands its buttons new quests when the rows in view
+    -- move, and a quest changing state leaves them where they were.
+    self.list:setDataSource(entries, true)
 end
 
 function QSF_Dialogue:showQuest(def)
@@ -227,10 +283,7 @@ function QSF_Dialogue:showQuest(def)
 
     self:say(text, def)
 
-    local y = self.speech:getY() + self.speech:getHeight() + GAP
-
-    self.detail:setY(y)
-    self.detail:setHeight(math.max(0, self:footerY() - GAP - y))
+    self.list:setVisible(false)
     self.detail:setKey(def.key)
     self.detail:setVisible(true)
 
@@ -241,6 +294,8 @@ function QSF_Dialogue:showQuest(def)
     end
 
     self.back:setTitle(getText("IGUI_QSF_Back"))
+
+    self:layout()
 end
 
 function QSF_Dialogue:refresh()
@@ -249,8 +304,6 @@ function QSF_Dialogue:refresh()
         self:close()
         return
     end
-
-    self:clearOptions()
 
     -- a reload can take the open quest away, or hand it to somebody else.
     local def = self.questKey and QSF_ClientState.defs[self.questKey] or nil
@@ -266,8 +319,9 @@ function QSF_Dialogue:refresh()
     end
 end
 
--- the buttons are rebuilt by a refresh, and one of them is in the middle of being clicked
--- whenever these run. so they only mark the window, and update() redraws it a frame later.
+-- the list hands its buttons new quests on a refresh, and one of them is in the middle of
+-- being clicked whenever these run. so they only mark the window, and update() redraws it
+-- a frame later.
 function QSF_Dialogue:show(questKey)
     self.questKey = questKey
     self.stale = true
@@ -328,6 +382,13 @@ function QSF_Dialogue:update()
         self.stale = false
         self.revision = QSF_ClientState.revision
         self:refresh()
+    end
+
+    -- the pane only knows how tall a quest is once it has drawn it, a frame after it was
+    -- asked to. the window catches up here.
+    if self.questKey and self.detail.contentHeight ~= self.fitted then
+        self.fitted = self.detail.contentHeight
+        self:layout()
     end
 
     -- the server refuses anything asked from out of reach, so a window left open by
