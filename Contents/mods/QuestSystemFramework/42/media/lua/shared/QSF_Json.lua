@@ -28,6 +28,32 @@ local function QSF_utf8(code)
     return "?"
 end
 
+-- the next character from i on that is neither whitespace nor inside a comment. only ever
+-- called from outside a string, so a slash here can only be starting a comment.
+local function QSF_nextMeaningful(text, i)
+    local n = #text
+
+    while i <= n do
+        local c = text:sub(i, i)
+
+        if c:find("%s") then
+            i = i + 1
+        elseif c == "/" and text:sub(i + 1, i + 1) == "/" then
+            local stop = text:find("\n", i, true)
+            if not stop then return nil end
+            i = stop + 1
+        elseif c == "/" and text:sub(i + 1, i + 1) == "*" then
+            local stop = text:find("*/", i + 2, true)
+            if not stop then return nil end
+            i = stop + 2
+        else
+            return c
+        end
+    end
+
+    return nil
+end
+
 -- a character scan, not a gsub: a naive comment strip eats the slashes in any url in a
 -- description, and a naive comma strip eats commas in prose. only the in-string state
 -- tells code from content.
@@ -68,8 +94,8 @@ local function QSF_prepass(text)
             i = stop + 2
         elseif c == "," then
             -- a comma is trailing when the next meaningful character closes the container.
-            local nextAt = text:find("[^%s]", i + 1)
-            local nextChar = nextAt and text:sub(nextAt, nextAt) or nil
+            -- a comment is not meaningful: "x": 1, // the last one  is how people write it.
+            local nextChar = QSF_nextMeaningful(text, i + 1)
             if nextChar == "}" or nextChar == "]" then
                 i = i + 1
             else
