@@ -207,12 +207,11 @@ function QSF_Commands.handlers.claim(player, args)
     -- refused by QSF_Rules.pickedReward rather than clamped into a payout nobody chose.
     local ok, reason = QSF_Verify.claim(player, args.key, args.pick)
 
-    if ok then
-        QSF_Net.toClient(player, "toast", { kind = "completed", key = args.key })
-    elseif reason ~= "Incomplete" then
-        -- an incomplete claim is just the client polling ahead of the server.
+    -- an incomplete claim is just the client polling ahead of the server.
+    if not ok and reason ~= "Incomplete" then
         QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason })
     end
+
 end
 
 function QSF_Commands.handlers.kills(player, args)

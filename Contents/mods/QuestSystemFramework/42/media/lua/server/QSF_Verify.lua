@@ -3,6 +3,7 @@
 ----------
 
 require "QSF_Core"
+require "QSF_Net"
 require "QSF_Rules"
 require "QSF_State"
 require "QSF_Rewards"
@@ -99,8 +100,12 @@ function QSF_Verify.claim(player, key, pick)
     QSF_State.complete(username, key)
     QSF_State.push(username, key)
 
+    -- from here rather than from the command, so the sweep below says so as well.
+    QSF_Net.toClient(player, "toast", { kind = "completed", key = key })
+
     QSF.log(username .. " completed " .. key)
     return true
+
 end
 
 -- covers a client that crashed or never had the mod, and runs the same check claim does.
