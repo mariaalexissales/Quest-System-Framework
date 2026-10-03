@@ -248,7 +248,7 @@ function QSF_Panel:buildRows()
     for _, def in ipairs(QSF_ClientState.ordered) do
         local rec = QSF_ClientState.record(def.key)
         local status = rec and rec.status or nil
-        local ok, reason, detail = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
+        local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
 
         local wanted = false
         if self.tab == "active" then
@@ -290,7 +290,7 @@ function QSF_Panel:buildRows()
 
                 row.progress = QSF_Rules.overallProgress(def, rec, counts)
             elseif locked then
-                row.subtitle = QSF_Detail.reasonText(reason, detail) or row.subtitle
+                row.subtitle = QSF_Detail.reasonText(reason, detail, extra) or row.subtitle
             elseif status == "done" and rec and (rec.turnins or 0) > 1 then
                 row.counter = "x" .. rec.turnins
             end

@@ -76,12 +76,13 @@ function QSF_Detail:onResize()
     end
 end
 
-local function QSF_reasonText(reason, detail)
+-- extra is the level, and only a skill has one.
+local function QSF_reasonText(reason, detail, extra)
     if reason == "NeedQuest" then
         local def = QSF_ClientState.defs[detail]
         return getText("IGUI_QSF_NeedQuest", def and def.title or tostring(detail))
     elseif reason == "NeedSkill" then
-        return getText("IGUI_QSF_NeedSkill", tostring(detail))
+        return getText("IGUI_QSF_NeedSkill", QSF_Theme.perkName(detail), tostring(extra))
     elseif reason == "NeedKills" then
         return getText("IGUI_QSF_NeedKills", tostring(detail))
     elseif reason == "NeedDays" then
@@ -194,7 +195,8 @@ function QSF_Detail:render()
         end
 
         for perkName, amount in pairs(def.rewards.xp or {}) do
-            self:drawText(perkName .. " +" .. amount .. " XP", PAD + ICON + GAP, y,
+            local text = getText("IGUI_QSF_RewardXp", QSF_Theme.perkName(perkName), tostring(amount))
+            self:drawText(text, PAD + ICON + GAP, y,
                 QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
             y = y + self.lineHeight
         end
@@ -220,9 +222,9 @@ function QSF_Detail:render()
     end
 
     -- a player cannot act on "no" alone.
-    local ok, reason, detail = QSF_Rules.canAccept(def, rec, getPlayer(), QSF_ClientState.state)
+    local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, getPlayer(), QSF_ClientState.state)
     if not ok and reason ~= "AlreadyActive" then
-        local text = QSF_reasonText(reason, detail)
+        local text = QSF_reasonText(reason, detail, extra)
         if text then
             y = y + GAP
             self:drawText(getText("IGUI_QSF_Locked"), PAD, y,

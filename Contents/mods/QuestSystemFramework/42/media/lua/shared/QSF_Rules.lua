@@ -106,7 +106,8 @@ function QSF_Rules.canAccept(def, rec, player, state)
     if player then
         for perkName, level in pairs(prereqs.skills or {}) do
             if QSF_perkLevel(player, perkName) < level then
-                return false, "NeedSkill", perkName .. " " .. level
+                -- apart, so the client can swap in the name the character sheet uses.
+                return false, "NeedSkill", perkName, level
             end
         end
 
