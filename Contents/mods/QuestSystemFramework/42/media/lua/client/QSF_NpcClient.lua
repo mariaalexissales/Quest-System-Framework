@@ -4,6 +4,7 @@
 
 require "QSF_Core"
 require "QSF_Rules"
+require "QSF_Text"
 require "QSF_ClientState"
 
 QSF = QSF or {}
@@ -14,6 +15,9 @@ local FLAG = "QSF_NPC"
 
 -- a prefix no sound bank has, so the engine finds nothing to moan with.
 local SILENT = "QSF_Silent"
+
+-- a speech bubble has room for a sentence. the window has the rest.
+local BUBBLE_CHARS = 140
 
 local VOICES = {
     "MaleZombieVoiceA", "MaleZombieVoiceB", "MaleZombieVoiceC",
@@ -203,7 +207,22 @@ function QSF_NpcClient.bodyOf(key)
     return zombie
 end
 
+-- over the npc's head, on this screen and no other. the conversation is one player's own:
+-- the line may use their name, or be about how far they have got. an npc with no body in
+-- sight says it in the window only.
+function QSF_NpcClient.say(key, text)
+    local zombie = QSF_NpcClient.bodyOf(key)
+    if not zombie then return end
+
+    -- the engine prints a rich text tag rather than obeying it.
+    local line = QSF_Text.clip(QSF_Text.plain(text), BUBBLE_CHARS)
+    if line == "" then return end
+
+    zombie:addLineChatElement(line, 1, 1, 1)
+end
+
 -- gold "?" beats gold "!" beats grey "?": something to hand in matters more than
+
 -- something new, and either matters more than a reminder. nil is nothing to say.
 function QSF_NpcClient.status(npcKey, player)
     local available, progress = false, false

@@ -11,6 +11,7 @@ require "QSF_Theme"
 require "QSF_ClientState"
 require "QSF_Rules"
 require "QSF_Text"
+require "QSF_NpcClient"
 
 QSF = QSF or {}
 
@@ -49,6 +50,8 @@ function QSF_Dialogue:new(x, y, player, npc)
     o.questKey = nil
     o.primaryAction = nil
     o.options = {}
+    -- every line already spoken over the npc's head in this conversation.
+    o.said = {}
     o.revision = -1
     o.stale = false
     o.ticks = 0
@@ -122,7 +125,15 @@ function QSF_Dialogue:say(text, def)
 
     self.speech:setText(text)
     self.speech:paginate()
+
+    -- over its head as well, but once: the window redraws the same line every time the
+    -- player comes back to it, and nobody greets the same person twice in a minute.
+    if not self.said[text] then
+        self.said[text] = true
+        QSF_NpcClient.say(self.npcKey, text)
+    end
 end
+
 
 function QSF_Dialogue:clearOptions()
     for _, button in ipairs(self.options) do
