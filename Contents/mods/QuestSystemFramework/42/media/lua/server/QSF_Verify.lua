@@ -112,13 +112,8 @@ end
 local function QSF_sweep()
     if not QSF_Defs or not QSF_Defs.loaded then return end
 
-    local players = isServer() and getOnlinePlayers() or nil
-    local count = players and players:size() or 1
-
-    for i = 1, count do
-        local player = players and players:get(i - 1) or getPlayer()
-
-        if player and player:getUsername() then
+    for _, player in ipairs(QSF_State.players()) do
+        if player:getUsername() then
             local quests = QSF_State.forPlayer(player:getUsername())
 
             for key, rec in pairs(quests or {}) do

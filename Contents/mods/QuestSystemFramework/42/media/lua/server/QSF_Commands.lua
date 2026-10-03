@@ -108,13 +108,18 @@ end
 
 QSF_Commands.handlers = {}
 
-function QSF_Commands.handlers.hello(player)
-    if not player or not player:getUsername() then return end
-
+-- everything one player needs to be looking at what the server has now.
+function QSF_Commands.sync(player)
     QSF_State.reconcile(player:getUsername(), QSF_Defs.all)
     QSF_Commands.sendDefs(player)
     QSF_Commands.sendNpcs(player)
     QSF_State.sendSnapshot(player)
+end
+
+function QSF_Commands.handlers.hello(player)
+    if not player or not player:getUsername() then return end
+
+    QSF_Commands.sync(player)
 end
 
 function QSF_Commands.handlers.accept(player, args)
@@ -220,27 +225,15 @@ end
 
 -- everything that changes what is defined ends here: read the files again, stand the
 -- npcs up or take them away, and tell everybody.
-local function QSF_reloadAll(player)
+local function QSF_reloadAll()
     QSF_Defs.load()
 
     -- straight away, so an npc taken out of the files is gone before the reply lands.
     local ok, err = pcall(QSF_Npcs.ensure)
     if not ok then QSF.warn("npc pass failed: " .. tostring(err)) end
 
-    if isServer() then
-        local players = getOnlinePlayers()
-        for i = 0, players:size() - 1 do
-            local other = players:get(i)
-            QSF_State.reconcile(other:getUsername(), QSF_Defs.all)
-            QSF_Commands.sendDefs(other)
-            QSF_Commands.sendNpcs(other)
-            QSF_State.sendSnapshot(other)
-        end
-    else
-        QSF_State.reconcile(player:getUsername(), QSF_Defs.all)
-        QSF_Commands.sendDefs(player)
-        QSF_Commands.sendNpcs(player)
-        QSF_State.sendSnapshot(player)
+    for _, player in ipairs(QSF_State.players()) do
+        QSF_Commands.sync(player)
     end
 end
 
@@ -255,7 +248,7 @@ end
 function QSF_Commands.handlers.reload(player)
     if not QSF_adminOnly(player, "reload") then return end
 
-    QSF_reloadAll(player)
+    QSF_reloadAll()
     QSF_Net.toClient(player, "toast", { kind = "reloaded" })
 end
 
@@ -294,7 +287,7 @@ function QSF_Commands.handlers.npcPlace(player, args)
 
     -- back through the file rather than straight into the table, so what is standing in
     -- the world is only ever what the files say.
-    QSF_reloadAll(player)
+    QSF_reloadAll()
 end
 
 -- only ones the game placed. a hand-written npc is taken out of the file it was written
@@ -317,7 +310,7 @@ function QSF_Commands.handlers.npcRemove(player, args)
 
     QSF.log(tostring(player:getUsername()) .. " removed npc " .. npc.key)
 
-    QSF_reloadAll(player)
+    QSF_reloadAll()
     QSF_Npcs.forget(npc.key)
 end
 
