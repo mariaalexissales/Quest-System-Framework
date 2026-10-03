@@ -118,12 +118,13 @@ function QSF_Commands.handlers.accept(player, args)
     if not def then return end
 
     local quests = QSF_State.forPlayer(username)
-    local ok, reason = QSF_Rules.canAccept(def, quests[args.key], player, quests)
+    local ok, reason, detail, extra = QSF_Rules.canAccept(def, quests[args.key], player, quests)
 
     if not ok then
         -- the client greys these rows with the same function, so this is a stale window
-        -- or somebody going around the ui.
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason })
+        -- or somebody going around the ui. the detail goes too, so it can say what is missing.
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason,
+            detail = detail, extra = extra })
         return
     end
 
@@ -149,13 +150,14 @@ function QSF_Commands.handlers.teleport(player, args)
     if not def or not def.teleport then return end
 
     local quests = QSF_State.forPlayer(username)
-    local ok, reason = QSF_Rules.canTeleport(def, quests[args.key])
+    local ok, reason, hours = QSF_Rules.canTeleport(def, quests[args.key])
 
     if not ok then
         -- the client greys the button with the same function, so this is a stale window.
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason })
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason, detail = hours })
         return
     end
+
 
     local spot = def.teleport
 

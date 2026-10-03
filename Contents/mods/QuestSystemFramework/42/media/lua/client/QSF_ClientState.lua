@@ -119,7 +119,12 @@ end
 function handlers.toast(args)
     QSF_ClientState.lastToast = args
     QSF_touch()
+
+    -- looked up at call time: the notice borrows the windows' wording, and those load
+    -- after this file does.
+    if QSF_Notice then QSF_Notice.show(args) end
 end
+
 
 function QSF_ClientState.onCommand(module, command, args)
     if module ~= QSF.MODULE then return end
