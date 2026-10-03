@@ -45,13 +45,6 @@ function QSF_Choice:new(x, y, width, height, def, key, target, onConfirm)
     return o
 end
 
-function QSF_Choice:attach(button)
-    button:initialise()
-    button:instantiate()
-    self:addChild(button)
-    return button
-end
-
 function QSF_Choice:createChildren()
     ISPanel.createChildren(self)
 
@@ -68,7 +61,7 @@ function QSF_Choice:createChildren()
         -- the ordinal is what travels to the server, so it is carried on the widget the
         -- same way the tab buttons carry theirs.
         button.index = index
-        self.picks[index] = self:attach(button)
+        self.picks[index] = QSF_Theme.attach(self, button)
 
         y = y + OPTION_HEIGHT + OPTION_GAP
     end
@@ -78,14 +71,14 @@ function QSF_Choice:createChildren()
     self.cancel = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Cancel"), self, QSF_Choice.onCancel)
     self.cancel:sizeToTitle(28)
     self.cancel:setX(self.width - PAD - self.cancel:getWidth())
-    self:attach(self.cancel)
+    QSF_Theme.attach(self, self.cancel)
 
     self.confirm = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Confirm"), self, QSF_Choice.onOk)
     self.confirm:sizeToTitle(28)
     self.confirm:setX(self.cancel:getX() - 6 - self.confirm:getWidth())
     -- nothing is picked yet, and a confirm with no pick is a refusal waiting to happen.
     self.confirm:setEnable(false)
-    self:attach(self.confirm)
+    QSF_Theme.attach(self, self.confirm)
 end
 
 function QSF_Choice:onPick(button)

@@ -50,6 +50,16 @@ function QSF_Theme.textures()
     return TEXTURES
 end
 
+-- every child goes on the same way. anchors are applied by instantiate(), so they have to
+-- be on the child before it runs.
+function QSF_Theme.attach(parent, child, anchors)
+    for key, value in pairs(anchors or {}) do child[key] = value end
+    child:initialise()
+    child:instantiate()
+    parent:addChild(child)
+    return child
+end
+
 -- getItemDisplayName is empty for a type the game does not know, and the full type is more
 -- use to whoever wrote the quest than a blank line would be.
 function QSF_Theme.itemName(fullType)

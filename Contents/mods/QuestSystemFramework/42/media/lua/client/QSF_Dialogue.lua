@@ -63,13 +63,6 @@ function QSF_Dialogue:new(x, y, player, npc)
     return o
 end
 
-function QSF_Dialogue:attach(button)
-    button:initialise()
-    button:instantiate()
-    self:addChild(button)
-    return button
-end
-
 -- the two footer buttons each swap between two labels, so they are sized for the wider
 -- one and the strip never reflows.
 local function QSF_labelWidth(button, ...)
@@ -141,21 +134,19 @@ function QSF_Dialogue:createChildren()
     self.detail = QSF_Detail:new(2, 0, self.width - 4, 100)
     self.detail.showBody = false
     self.detail.showGiver = false
-    self.detail:initialise()
-    self.detail:instantiate()
-    self:addChild(self.detail)
+    QSF_Theme.attach(self, self.detail)
 
     local y = self:footerY()
 
     self.back = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Goodbye"), self, QSF_Dialogue.onBack)
     self.back:setWidth(QSF_labelWidth(self.back, "IGUI_QSF_Goodbye", "IGUI_QSF_Back"))
     self.back:setX(self.width - PAD - self.back:getWidth())
-    self:attach(self.back)
+    QSF_Theme.attach(self, self.back)
 
     self.primary = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Accept"), self, QSF_Dialogue.onPrimary)
     self.primary:setWidth(QSF_labelWidth(self.primary, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn"))
     self.primary:setX(self.back:getX() - 6 - self.primary:getWidth())
-    self:attach(self.primary)
+    QSF_Theme.attach(self, self.primary)
 
     self:refresh()
     self.revision = QSF_ClientState.revision

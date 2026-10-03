@@ -74,15 +74,6 @@ local function QSF_labelWidth(button, ...)
     return 24 + widest
 end
 
--- anchors are applied by instantiate(), so they have to be assigned before it runs.
-function QSF_Panel:attach(button, anchors)
-    for key, value in pairs(anchors or {}) do button[key] = value end
-    button:initialise()
-    button:instantiate()
-    self:addChild(button)
-    return button
-end
-
 function QSF_Panel:createChildren()
     ISCollapsableWindow.createChildren(self)
 
@@ -91,19 +82,19 @@ function QSF_Panel:createChildren()
     self.tabActive = QSF_Button:new(PAD, tabY, 10, TAB_HEIGHT, getText("IGUI_QSF_TabActive"), self, QSF_Panel.onTab)
     self.tabActive:sizeToTitle(28)
     self.tabActive.tab = "active"
-    self:attach(self.tabActive)
+    QSF_Theme.attach(self, self.tabActive)
 
     self.tabAvailable = QSF_Button:new(self.tabActive:getRight() + 4, tabY, 10, TAB_HEIGHT,
         getText("IGUI_QSF_TabAvailable"), self, QSF_Panel.onTab)
     self.tabAvailable:sizeToTitle(28)
     self.tabAvailable.tab = "available"
-    self:attach(self.tabAvailable)
+    QSF_Theme.attach(self, self.tabAvailable)
 
     self.tabDone = QSF_Button:new(self.tabAvailable:getRight() + 4, tabY, 10, TAB_HEIGHT,
         getText("IGUI_QSF_TabDone"), self, QSF_Panel.onTab)
     self.tabDone:sizeToTitle(28)
     self.tabDone.tab = "done"
-    self:attach(self.tabDone)
+    QSF_Theme.attach(self, self.tabDone)
 
     local listHeight = footerY - listY - GAP - 2
 
@@ -126,25 +117,23 @@ function QSF_Panel:createChildren()
     self.listHeight = listHeight
     self:addChild(self.list)
 
-    self.detail = QSF_Detail:new(PAD + listW + GAP, listY, self.width - listW - PAD * 2 - GAP, listHeight)
-    self.detail:initialise()
-    self.detail:instantiate()
-    self:addChild(self.detail)
+    self.detail = QSF_Theme.attach(self,
+        QSF_Detail:new(PAD + listW + GAP, listY, self.width - listW - PAD * 2 - GAP, listHeight))
 
     self.action = QSF_Button:new(PAD, footerY + 2, 10, FOOTER_HEIGHT - 6, getText("IGUI_QSF_Accept"), self, QSF_Panel.onAction)
     self.action:setWidth(QSF_labelWidth(self.action, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon"))
-    self:attach(self.action)
+    QSF_Theme.attach(self, self.action)
 
     -- beside the action button, which keeps a fixed x and a fixed width, so its right edge
     -- is a stable anchor and the strip never reflows.
     self.teleport = QSF_Button:new(self.action:getRight() + 4, footerY + 2, 10, FOOTER_HEIGHT - 6,
         getText("IGUI_QSF_Teleport"), self, QSF_Panel.onTeleport)
     self.teleport:setWidth(QSF_labelWidth(self.teleport, "IGUI_QSF_Teleport", "IGUI_QSF_TeleportCooldown"))
-    self:attach(self.teleport)
+    QSF_Theme.attach(self, self.teleport)
 
     self.reload = QSF_Button:new(self.width - PAD - 90, footerY + 2, 90, FOOTER_HEIGHT - 6,
         getText("IGUI_QSF_Reload"), self, QSF_Panel.onReload)
-    self:attach(self.reload, { anchorLeft = false, anchorRight = true })
+    QSF_Theme.attach(self, self.reload, { anchorLeft = false, anchorRight = true })
 
     self:refresh()
 end

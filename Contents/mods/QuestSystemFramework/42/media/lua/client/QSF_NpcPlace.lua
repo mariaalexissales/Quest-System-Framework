@@ -57,13 +57,6 @@ function QSF_NpcPlace:new(x, y, playerNum, tileX, tileY, tileZ)
     return o
 end
 
-function QSF_NpcPlace:attach(child)
-    child:initialise()
-    child:instantiate()
-    self:addChild(child)
-    return child
-end
-
 function QSF_NpcPlace:createChildren()
     ISPanel.createChildren(self)
 
@@ -78,12 +71,12 @@ function QSF_NpcPlace:createChildren()
         return at
     end
 
-    self.key = self:attach(ISTextEntryBox:new("", x, nextRow("Key"), width, ROW))
-    self.name = self:attach(ISTextEntryBox:new("", x, nextRow("Name"), width, ROW))
+    self.key = QSF_Theme.attach(self, ISTextEntryBox:new("", x, nextRow("Key"), width, ROW))
+    self.name = QSF_Theme.attach(self, ISTextEntryBox:new("", x, nextRow("Name"), width, ROW))
 
     -- every outfit either gender has, the way the vanilla horde tool lists them. typing
     -- in the box narrows it, which two hundred names need.
-    self.outfit = self:attach(ISComboBox:new(x, nextRow("Outfit"), width, ROW))
+    self.outfit = QSF_Theme.attach(self, ISComboBox:new(x, nextRow("Outfit"), width, ROW))
     self.outfit:setEditable(true)
 
     self.maleOutfits = getAllOutfits(false)
@@ -105,27 +98,27 @@ function QSF_NpcPlace:createChildren()
     end
     self.outfit:selectData("Generic01")
 
-    self.female = self:attach(ISTickBox:new(x, nextRow("Female"), width, ROW, "", self, QSF_NpcPlace.onChanged))
+    self.female = QSF_Theme.attach(self, ISTickBox:new(x, nextRow("Female"), width, ROW, "", self, QSF_NpcPlace.onChanged))
     self.female:addOption("")
 
-    self.skin = self:attach(ISComboBox:new(x, nextRow("Skin"), 60, ROW))
+    self.skin = QSF_Theme.attach(self, ISComboBox:new(x, nextRow("Skin"), 60, ROW))
     for index = 1, SKINS do
         self.skin:addOptionWithData(tostring(index), index)
     end
 
-    self.greeting = self:attach(ISTextEntryBox:new("", x, nextRow("Greeting"), width, ROW))
+    self.greeting = QSF_Theme.attach(self, ISTextEntryBox:new("", x, nextRow("Greeting"), width, ROW))
 
     local buttonY = self.height - PAD - BUTTON_HEIGHT
 
     self.cancel = QSF_Button:new(0, buttonY, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Cancel"), self, QSF_NpcPlace.onCancel)
     self.cancel:sizeToTitle(28)
     self.cancel:setX(self.width - PAD - self.cancel:getWidth())
-    self:attach(self.cancel)
+    QSF_Theme.attach(self, self.cancel)
 
     self.confirm = QSF_Button:new(0, buttonY, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Confirm"), self, QSF_NpcPlace.onOk)
     self.confirm:sizeToTitle(28)
     self.confirm:setX(self.cancel:getX() - 6 - self.confirm:getWidth())
-    self:attach(self.confirm)
+    QSF_Theme.attach(self, self.confirm)
 end
 
 -- anything that was wrong may not be any more.
