@@ -9,8 +9,6 @@ require "QSF_Theme"
 require "QSF_ClientState"
 require "QSF_NpcClient"
 
-QSF = QSF or {}
-
 -- one element draws every marker. it has no size of its own and never takes the mouse;
 -- the foraging eye is built the same way and sits over the player's head the same way.
 QSF_NpcMarker = ISPanel:derive("QSF_NpcMarker")

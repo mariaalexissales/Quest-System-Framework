@@ -4,7 +4,6 @@
 
 require "QSF_Core"
 
-QSF = QSF or {}
 QSF_Net = QSF_Net or {}
 
 -- looked up at call time: shared/ loads before client/ and server/, so neither dispatcher

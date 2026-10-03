@@ -6,7 +6,6 @@ require "QSF_Core"
 require "QSF_Rules"
 require "QSF_ClientState"
 
-QSF = QSF or {}
 QSF_Poll = QSF_Poll or {}
 
 local POLL_MS = 2000

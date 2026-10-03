@@ -7,7 +7,6 @@ require "QSF_Rules"
 require "QSF_Text"
 require "QSF_ClientState"
 
-QSF = QSF or {}
 QSF_NpcClient = QSF_NpcClient or {}
 
 -- the anim variable media/AnimSets/zombie/idle/QSF_NpcIdle.xml is gated on.

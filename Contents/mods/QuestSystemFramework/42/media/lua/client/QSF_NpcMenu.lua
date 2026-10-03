@@ -11,7 +11,6 @@ require "QSF_NpcPlace"
 require "QSF_Theme"
 require "ISUI/ISModalDialog"
 
-QSF = QSF or {}
 QSF_NpcMenu = QSF_NpcMenu or {}
 
 -- tiles either way. a character is drawn up the screen from the tile it stands on, so a

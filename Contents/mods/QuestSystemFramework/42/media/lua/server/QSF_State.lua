@@ -8,7 +8,6 @@ require "QSF_Rules"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_State = QSF_State or {}
 
 local TABLE_NAME = "QSF_PlayerState"

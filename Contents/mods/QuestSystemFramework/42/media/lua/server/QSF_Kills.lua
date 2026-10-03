@@ -9,7 +9,6 @@ require "QSF_State"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Kills = QSF_Kills or {}
 
 local MAX_PER_FLUSH = 40

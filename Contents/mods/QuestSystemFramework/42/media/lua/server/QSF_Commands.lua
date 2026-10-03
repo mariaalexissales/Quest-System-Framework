@@ -12,7 +12,6 @@ require "QSF_Npcs"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Commands = QSF_Commands or {}
 
 -- a hundred quests is more text than one command should carry.

@@ -8,7 +8,6 @@ require "QSF_Schema"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Defs = QSF_Defs or {}
 
 QSF_Defs.all = QSF_Defs.all or {}

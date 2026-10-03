@@ -7,7 +7,6 @@ require "QSF_Rules"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Rewards = QSF_Rewards or {}
 
 -- one at a time rather than AddItems, so a container that fills partway through reports

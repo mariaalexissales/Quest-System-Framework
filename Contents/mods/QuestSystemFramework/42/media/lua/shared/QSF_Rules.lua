@@ -4,7 +4,6 @@
 
 require "QSF_Core"
 
-QSF = QSF or {}
 QSF_Rules = QSF_Rules or {}
 
 local function QSF_worldHours()

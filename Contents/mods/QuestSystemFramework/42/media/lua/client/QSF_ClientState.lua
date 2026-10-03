@@ -6,7 +6,6 @@ require "QSF_Core"
 require "QSF_Net"
 require "QSF_Rules"
 
-QSF = QSF or {}
 QSF_ClientState = QSF_ClientState or {}
 
 QSF_ClientState.defs = QSF_ClientState.defs or {}

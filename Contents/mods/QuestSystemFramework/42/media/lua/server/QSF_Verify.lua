@@ -10,7 +10,6 @@ require "QSF_Rewards"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Verify = QSF_Verify or {}
 
 -- Recurse, or everything in a bag goes uncounted.

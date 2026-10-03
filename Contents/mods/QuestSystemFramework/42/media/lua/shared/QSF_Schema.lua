@@ -6,7 +6,6 @@ require "QSF_Core"
 require "QSF_Rules"
 require "QSF_Text"
 
-QSF = QSF or {}
 QSF_Schema = QSF_Schema or {}
 
 local VALID_KEY = "^[%w_%.%-]+$"
