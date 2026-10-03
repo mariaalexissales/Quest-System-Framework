@@ -20,9 +20,6 @@ QSF_ClientState.revision = 0
 
 QSF_ClientState.lastToast = nil
 
-local pending = nil
-local pendingNpcs = nil
-
 local function QSF_touch()
     QSF_ClientState.revision = QSF_ClientState.revision + 1
 end
@@ -43,41 +40,38 @@ end
 
 local handlers = {}
 
--- staged, so a half-delivered set never reaches the window.
-function handlers.defs(args)
-    if not args then return end
+-- a list arrives in pieces and is held back until the last one, so a half-delivered set
+-- never reaches a window. then it replaces what was there whole: a reload that dropped
+-- something has to drop it here too, which a merge never would.
+local function QSF_staged(field, done)
+    local pending = nil
 
-    if not pending or args.i == 1 then pending = {} end
+    return function(args)
+        if not args then return end
 
-    for _, def in ipairs(args.quests or {}) do
-        pending[def.key] = def
-    end
+        if not pending or args.i == 1 then pending = {} end
 
-    if args.i >= args.n then
-        QSF_ClientState.defs = pending
-        pending = nil
-        QSF_reorder()
-        QSF_touch()
-    end
-end
+        for _, entry in ipairs(args[field] or {}) do
+            pending[entry.key] = entry
+        end
 
--- staged the same way, and replaced whole: a reload that dropped an npc has to drop it
--- here too, which a merge never would.
-function handlers.npcs(args)
-    if not args then return end
-
-    if not pendingNpcs or args.i == 1 then pendingNpcs = {} end
-
-    for _, npc in ipairs(args.npcs or {}) do
-        pendingNpcs[npc.key] = npc
-    end
-
-    if args.i >= args.n then
-        QSF_ClientState.npcs = pendingNpcs
-        pendingNpcs = nil
-        QSF_touch()
+        if args.i >= args.n then
+            local whole = pending
+            pending = nil
+            done(whole)
+            QSF_touch()
+        end
     end
 end
+
+handlers.defs = QSF_staged("quests", function(defs)
+    QSF_ClientState.defs = defs
+    QSF_reorder()
+end)
+
+handlers.npcs = QSF_staged("npcs", function(npcs)
+    QSF_ClientState.npcs = npcs
+end)
 
 -- which zombie each npc is. kept apart from the list because it arrives on its own
 -- whenever the server stands a body up.
