@@ -21,6 +21,27 @@ end
 
 QSF_Rules.perkLevel = QSF_perkLevel
 
+-- an npc is a zombie underneath, and this is the one thing about a zombie that reaches
+-- every client and survives a save. bit 15 only says the hat has come off, and would
+-- otherwise make it somebody else the moment it did.
+function QSF_Rules.npcId(zombie)
+    local id = zombie:getPersistentOutfitID()
+    if id % 65536 >= 32768 then id = id - 32768 end
+    return id
+end
+
+-- the id is rolled per outfit, so any other zombie in the same clothes can turn up with
+-- the same one. both sides only ever accept it this close to where the npc stands.
+function QSF_Rules.isNear(x, y, z, npc, tiles)
+    if not npc or not x or not y then return false end
+    if math.floor(z or 0) ~= npc.z then return false end
+
+    -- measured from the middle of the tile, which is where it is stood.
+    local dx = x - (npc.x + 0.5)
+    local dy = y - (npc.y + 0.5)
+    return (dx * dx + dy * dy) <= (tiles * tiles)
+end
+
 -- the client greys a row with this and the server authorises with it, so a greyed row and
 -- a refused button cannot disagree. reason is a translation key suffix.
 function QSF_Rules.canAccept(def, rec, player, state)

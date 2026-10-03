@@ -8,6 +8,7 @@ require "QSF_Rules"
 require "QSF_State"
 require "QSF_Verify"
 require "QSF_Kills"
+require "QSF_Npcs"
 
 if not QSF.isAuthority() then return end
 
@@ -91,8 +92,11 @@ function QSF_Commands.sendDefs(player)
     QSF_sendPieces(player, "defs", "quests", QSF_wireDefs())
 end
 
+-- the ids go separately. they change whenever a body is first stood up, long after the
+-- list itself has stopped moving.
 function QSF_Commands.sendNpcs(player)
     QSF_sendPieces(player, "npcs", "npcs", QSF_wireNpcs())
+    QSF_Npcs.sendIds(player)
 end
 
 QSF_Commands.handlers = {}
@@ -214,6 +218,10 @@ function QSF_Commands.handlers.reload(player)
     end
 
     QSF_Defs.load()
+
+    -- straight away, so an npc taken out of the files is gone before the reply lands.
+    local ok, err = pcall(QSF_Npcs.ensure)
+    if not ok then QSF.warn("npc pass failed: " .. tostring(err)) end
 
     if isServer() then
         local players = getOnlinePlayers()

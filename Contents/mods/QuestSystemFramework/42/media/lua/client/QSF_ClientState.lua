@@ -14,6 +14,7 @@ QSF_ClientState.ordered = QSF_ClientState.ordered or {}
 QSF_ClientState.state = QSF_ClientState.state or {}
 QSF_ClientState.collect = QSF_ClientState.collect or {}
 QSF_ClientState.npcs = QSF_ClientState.npcs or {}
+QSF_ClientState.npcIds = QSF_ClientState.npcIds or {}
 QSF_ClientState.ready = false
 QSF_ClientState.revision = 0
 
@@ -76,6 +77,13 @@ function handlers.npcs(args)
         pendingNpcs = nil
         QSF_touch()
     end
+end
+
+-- which zombie each npc is. kept apart from the list because it arrives on its own
+-- whenever the server stands a body up.
+function handlers.npcIds(args)
+    QSF_ClientState.npcIds = (args and args.ids) or {}
+    QSF_touch()
 end
 
 function handlers.state(args)

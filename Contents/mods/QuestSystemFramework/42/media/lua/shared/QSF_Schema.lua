@@ -14,9 +14,6 @@ local MAX_CHOICE_OPTIONS = 8
 local FALLBACK_OUTFIT = "Generic01"
 local FACINGS = { N = true, NE = true, E = true, SE = true, S = true, SW = true, W = true, NW = true }
 
--- the game swaps these two for _Early, _Mid and _Late variants as the world ages.
-local SHIFTING_OUTFITS = { Bandit = true, Survivalist = true }
-
 -- a lookup that throws means the engine is not ready yet, which is "cannot say" rather
 -- than "invalid" - otherwise an early load would silently delete every objective.
 local function QSF_itemExists(fullType)
@@ -503,9 +500,6 @@ function QSF_Schema.normaliseNpc(raw, sourceFile)
         errors[#errors + 1] = where .. ": there is no " .. (female and "female" or "male")
             .. " outfit called " .. outfit .. ", so " .. FALLBACK_OUTFIT .. " is used"
         outfit = FALLBACK_OUTFIT
-    elseif SHIFTING_OUTFITS[outfit] then
-        errors[#errors + 1] = where .. ": the game re-dresses " .. outfit
-            .. " as the world ages, so this one will not keep its look"
     end
 
     local skin = math.floor(tonumber(raw.skin) or 1)
