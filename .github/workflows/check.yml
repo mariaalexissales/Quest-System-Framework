@@ -1,0 +1,74 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mod-files:
+    name: mod files are valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # the checks live in estral-tools, which is private, so this needs the
+      # read-only deploy key. it lands beside the mod rather than in it, and the
+      # scripts read the mod out of the working directory, not their own location.
+      - uses: actions/checkout@v4
+        with:
+          repository: mariaalexissales/estral-tools
+          ssh-key: ${{ secrets.ESTRAL_TOOLS_KEY }}
+          path: estral-tools
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # a lua syntax error only shows up once the game loads the file.
+      - name: lua files parse
+        run: |
+          pip install --quiet luaparser==4.2.0
+          python estral-tools/quest-system-framework/check_lua.py
+
+      # the game runs kahlua, which has no next(), io or load. a call to one
+      # parses and lints clean, then is a call on nil the first time it's reached.
+      - name: lua only calls what the game's lua has
+        run: python estral-tools/quest-system-framework/check_runtime.py
+
+  lua-tests:
+    name: lua does what it should
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          repository: mariaalexissales/estral-tools
+          ssh-key: ${{ secrets.ESTRAL_TOOLS_KEY }}
+          path: estral-tools
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install --quiet lupa==2.8
+
+      # runs the mod's lua behind a stub of the game: the loader, the npc spawn
+      # loop, the giver rules, the windows, and a quest folder with a broken file
+      # in it, which is the test that used to mean leaving one in a live folder.
+      - name: tests pass
+        run: python estral-tools/quest-system-framework/harness/run_tests.py
