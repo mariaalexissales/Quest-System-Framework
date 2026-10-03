@@ -451,6 +451,11 @@ function QSF_Schema.normalise(raw, sourceFile)
         errors[#errors + 1] = key .. ": giver must be the key of an npc"
     end
 
+    -- handing it in is something that happens at the giver, and the sweep would pay it
+    -- out wherever the player happened to be. first, and silently: unlike the two below
+    -- this is not a mistake an author made, and it leaves them nothing to report.
+    if def.giver then def.autoComplete = false end
+
     -- otherwise the items go the instant the last one is picked up, with no prompt.
     if consumes and def.autoComplete then
         def.autoComplete = false
@@ -462,11 +467,6 @@ function QSF_Schema.normalise(raw, sourceFile)
         def.autoComplete = false
         errors[#errors + 1] = key .. ": has a reward choice, so autoComplete was forced off"
     end
-
-    -- handing it in is something that happens at the giver, and the sweep would pay it
-    -- out wherever the player happened to be. unlike the two above this is not a mistake
-    -- an author made, so it is not reported as one.
-    if def.giver then def.autoComplete = false end
 
     def.sig = QSF_Schema.signature(def)
     return def, errors
