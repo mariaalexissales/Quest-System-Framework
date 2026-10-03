@@ -44,15 +44,7 @@ end
 function QSF_Detail:createChildren()
     ISPanel.createChildren(self)
 
-    -- rich text gives admins <LINE> and <RGB:> in a description for free.
-    self.body = ISRichTextPanel:new(PAD, 0, self.width - PAD * 2, 60)
-    self.body:initialise()
-    self.body.background = false
-    self.body.autosetheight = true
-    self.body.marginLeft = 0
-    self.body.marginRight = 0
-    self.body.marginTop = 0
-    self:addChild(self.body)
+    self.body = QSF_Theme.richText(self, PAD, 0, self.width - PAD * 2, 60)
 end
 
 function QSF_Detail:setKey(key)

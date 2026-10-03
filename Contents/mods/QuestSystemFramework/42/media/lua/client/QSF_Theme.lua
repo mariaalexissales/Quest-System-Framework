@@ -60,6 +60,22 @@ function QSF_Theme.attach(parent, child, anchors)
     return child
 end
 
+-- rich text with no chrome and no margins, as tall as what is put in it. it is what gives
+-- a description or a line of dialogue <LINE> and <RGB:> for free.
+function QSF_Theme.richText(parent, x, y, width, height)
+    local panel = ISRichTextPanel:new(x, y, width, height)
+
+    panel:initialise()
+    panel.background = false
+    panel.autosetheight = true
+    panel.marginLeft = 0
+    panel.marginRight = 0
+    panel.marginTop = 0
+    parent:addChild(panel)
+
+    return panel
+end
+
 -- the top-left corner that puts something this size in the middle of the screen.
 function QSF_Theme.centre(width, height)
     return (getCore():getScreenWidth() - width) / 2, (getCore():getScreenHeight() - height) / 2

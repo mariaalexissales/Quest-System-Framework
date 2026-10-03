@@ -110,15 +110,7 @@ function QSF_Dialogue:createChildren()
     ISCollapsableWindow.createChildren(self)
     self:createList()
 
-    -- rich text, so a greeting gets <LINE> and <RGB:> the way a description does.
-    self.speech = ISRichTextPanel:new(PAD, self:titleBarHeight() + PAD, self.width - PAD * 2, 40)
-    self.speech:initialise()
-    self.speech.background = false
-    self.speech.autosetheight = true
-    self.speech.marginLeft = 0
-    self.speech.marginRight = 0
-    self.speech.marginTop = 0
-    self:addChild(self.speech)
+    self.speech = QSF_Theme.richText(self, PAD, self:titleBarHeight() + PAD, self.width - PAD * 2, 40)
 
     -- the same pane the log uses, so objectives and rewards read the same in both.
     self.detail = QSF_Detail:new(2, 0, self.width - 4, 100)
