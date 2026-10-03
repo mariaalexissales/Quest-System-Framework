@@ -15,9 +15,7 @@ QSF_Npcs = QSF_Npcs or {}
 local TABLE_NAME = "QSF_NpcState"
 local ENSURE_MS = 2000
 
--- tiles. the scan reaches as far as a client is willing to recognise the npc, and a body
--- further than DRIFT from its tile is put back.
-local SCAN = 3
+-- tiles. a body further than this from its own tile is put back.
 local DRIFT = 1.5
 
 -- a chunk's zombies arrive a moment after its squares do, and spawning into that gap
@@ -29,6 +27,10 @@ QSF_Npcs.state = QSF_Npcs.state or nil
 -- runtime only. how many passes in a row each npc's tile was loaded with nobody on it.
 local misses = {}
 local warned = {}
+
+-- runtime only. the zombie each npc was last seen as, so one thrown clear of the leash
+-- can still be found and taken away instead of being left where it landed.
+local lastBody = {}
 
 -- once per message: the pass runs every two seconds for as long as the server is up.
 local function QSF_warnOnce(message)
@@ -60,22 +62,26 @@ local function QSF_loaded(x, y, z)
     return getCell():getGridSquare(x, y, z) ~= nil
 end
 
--- every live zombie carrying this id within reach of the tile.
+-- every live zombie carrying this id within the leash of the tile. the squares are a box
+-- and the leash is a circle, so the corners are checked again by distance.
 local function QSF_bodies(x, y, z, id)
     local found = {}
     if not id then return found end
 
     local cell = getCell()
+    local home = { x = x, y = y, z = z }
+    local reach = QSF.NPC_LEASH
 
-    for dx = -SCAN, SCAN do
-        for dy = -SCAN, SCAN do
+    for dx = -reach, reach do
+        for dy = -reach, reach do
             local square = cell:getGridSquare(x + dx, y + dy, z)
             local objects = square and square:getMovingObjects() or nil
 
             for i = 0, (objects and objects:size() or 0) - 1 do
                 local object = objects:get(i)
                 if instanceof(object, "IsoZombie") and not object:isDead()
-                    and QSF_Rules.npcId(object) == id then
+                    and QSF_Rules.npcId(object) == id
+                    and QSF_Rules.isNear(object:getX(), object:getY(), object:getZ(), home, reach) then
                     found[#found + 1] = object
                 end
             end
@@ -129,7 +135,20 @@ local function QSF_spawn(npc, st)
     zombie:setForwardIsoDirection(IsoDirections[npc.facing])
     QSF_Npcs.settle(zombie)
 
+    lastBody[npc.key] = zombie
     return true
+end
+
+-- the object is handed back to the engine when its zombie goes and comes round again as
+-- somebody else, so the id is what says it is still ours.
+local function QSF_stray(npc, st)
+    local zombie = lastBody[npc.key]
+    lastBody[npc.key] = nil
+
+    if not zombie or zombie:isDead() or not zombie:getCurrentSquare() then return nil end
+    if QSF_Rules.npcId(zombie) ~= st.id then return nil end
+
+    return zombie
 end
 
 -- a body left behind when its npc moved or changed outfit. the tile may not be loaded
@@ -226,6 +245,7 @@ local function QSF_ensureOne(npc, st)
             QSF_spawn(npc, st)
         else
             QSF_Npcs.settle(keep)
+            lastBody[npc.key] = keep
         end
 
         return false
@@ -234,7 +254,14 @@ local function QSF_ensureOne(npc, st)
     local hadId = st.id ~= nil
     misses[npc.key] = (misses[npc.key] or 0) + 1
 
-    -- one that has never existed has nothing to wait for.
+    -- seen a moment ago and now past the leash: a car, most likely. nothing to wait for.
+    local stray = QSF_stray(npc, st)
+    if stray then
+        QSF_remove(stray)
+        misses[npc.key] = MISSES
+    end
+
+    -- one that has never existed has nothing to wait for either.
     if hadId and misses[npc.key] < MISSES then return false end
 
     misses[npc.key] = 0
