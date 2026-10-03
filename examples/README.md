@@ -284,6 +284,9 @@ be abandoned from there.
 
 `autoComplete` is off for these whatever you write, since handing it in is the point.
 
+One NPC can give as many quests as you like. The conversation lists them all and scrolls when
+there are more than fit.
+
 `dialogue` is what the NPC says about that quest. `offer` before it's taken, `progress` while it's
 underway, `complete` when it's ready to hand in. All three are optional. With no `offer` they say
 the quest's `description`, and the other two have stock lines.
@@ -373,9 +376,6 @@ never counts toward a kill objective.
 An NPC's tile has to be loaded for it to exist, so the first player into an area sees it appear a
 moment after they arrive. Chunks load well ahead of where anyone can see, so in practice it's there
 by the time they get to it.
-
-A conversation lists the first ten things an NPC has for a player. Past that the rest don't fit.
-Give the eleventh to somebody else.
 
 A file with a syntax error in it costs you that file and one line in the log, naming the file and
 the line the mistake is on:
