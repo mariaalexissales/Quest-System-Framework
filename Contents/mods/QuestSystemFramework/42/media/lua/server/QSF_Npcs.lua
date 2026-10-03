@@ -198,6 +198,10 @@ local function QSF_reconcile(data)
         if st.id and (st.x ~= npc.x or st.y ~= npc.y or st.z ~= npc.z or st.look ~= look) then
             QSF_leave(st)
 
+            -- the wait is for a body that might still be loading. this one was moved on
+            -- purpose and there is nothing to wait for.
+            misses[key] = MISSES
+
             -- a new outfit is a new roll. a new tile keeps the old one.
             if st.look ~= look then
                 st.id = nil
@@ -228,6 +232,10 @@ local function QSF_cleanUp(data)
         -- gone from the files but not forgotten: the id waits for it to come back.
         if not QSF_Defs.npcs[key] and st.id and st.x and QSF_loaded(st.x, st.y, st.z) then
             QSF_removeAll(st.x, st.y, st.z, st.id)
+
+            -- taken away on purpose, so if the npc is written back in it is stood
+            -- straight back up.
+            misses[key] = MISSES
         end
     end
 end
@@ -316,6 +324,24 @@ local function QSF_ensureOne(npc, st)
 
     misses[npc.key] = 0
     return QSF_spawn(npc, st) and not hadId
+end
+
+-- for an npc an admin took away on purpose. one that merely dropped out of the files
+-- keeps its id in case it comes back; this one is not coming back.
+function QSF_Npcs.forget(key)
+    local data = QSF_Npcs.data()
+    local st = data[key]
+    if not st then return end
+
+    -- somewhere nobody is, the body cannot be reached yet. the record stays so the
+    -- clean-up pass still knows what to take away when somebody gets there.
+    if st.id and st.x and not QSF_loaded(st.x, st.y, st.z) then return end
+
+    if st.id and st.x then QSF_removeAll(st.x, st.y, st.z, st.id) end
+
+    data[key] = nil
+    misses[key] = nil
+    lastBody[key] = nil
 end
 
 function QSF_Npcs.wireIds()
