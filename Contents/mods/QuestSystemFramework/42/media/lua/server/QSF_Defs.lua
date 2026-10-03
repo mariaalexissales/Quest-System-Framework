@@ -144,98 +144,111 @@ local function QSF_isPlacedFile(path)
     return path:sub(-#QSF.NPC_FILE):lower() == QSF.NPC_FILE
 end
 
+-- one file, decoded, or nil with the file counted as rejected and the reason logged.
+local function QSF_readJson(path, tally)
+    local text, readErr = QSF_Defs.readFile(path)
+    if not text then
+        QSF.warn(path .. ": " .. readErr)
+        tally.rejected = tally.rejected + 1
+        return nil
+    end
+
+    local decoded, jsonErr = QSF_Json.decode(text)
+    if not decoded then
+        QSF.warn(path .. ": " .. tostring(jsonErr))
+        tally.rejected = tally.rejected + 1
+        return nil
+    end
+
+    return decoded
+end
+
+local function QSF_warnAll(errors, tally)
+    for _, message in ipairs(errors or {}) do
+        QSF.warn(message)
+        tally.warnings = tally.warnings + 1
+    end
+end
+
+-- into is key to npc, and sources is key to the file it came from, for naming both files
+-- when a key turns up twice.
+local function QSF_addNpcs(decoded, path, into, sources, tally)
+    for _, raw in ipairs(QSF_npcList(decoded) or {}) do
+        local npc, errors = QSF_Schema.normaliseNpc(raw, path)
+        QSF_warnAll(errors, tally)
+
+        if not npc then
+            tally.rejected = tally.rejected + 1
+        else
+            if into[npc.key] then
+                QSF.warn("npc " .. npc.key .. ": already defined in " .. tostring(sources[npc.key])
+                    .. ", the copy in " .. path .. " wins")
+            else
+                tally.npcs = tally.npcs + 1
+            end
+
+            -- only these can be taken away again from inside the game.
+            npc.placed = QSF_isPlacedFile(path)
+            into[npc.key] = npc
+            sources[npc.key] = path
+        end
+    end
+end
+
+local function QSF_addQuests(decoded, path, into, sources, tally)
+    local list = QSF_questList(decoded)
+    if not list then
+        QSF.warn(path .. ": expected a list of quests, or an object with a quests list")
+        tally.rejected = tally.rejected + 1
+        return
+    end
+
+    for _, raw in ipairs(list) do
+        local def, errors = QSF_Schema.normalise(raw, path)
+        QSF_warnAll(errors, tally)
+
+        if not def then
+            tally.rejected = tally.rejected + 1
+        else
+            if into[def.key] then
+                QSF.warn(def.key .. ": already defined in " .. tostring(sources[def.key])
+                    .. ", the copy in " .. path .. " wins")
+            end
+
+            into[def.key] = def
+            sources[def.key] = path
+            tally.quests = tally.quests + 1
+        end
+    end
+end
+
 function QSF_Defs.load()
-    local defs = {}
-    local sources = {}
-    local npcs = {}
-    local npcSources = {}
+    local defs, sources = {}, {}
+    local npcs, npcSources = {}, {}
     local files = QSF_Defs.listFiles()
-    local loadedCount, npcCount, rejected, warnings = 0, 0, 0, 0
+    local tally = { quests = 0, npcs = 0, rejected = 0, warnings = 0 }
 
     for _, path in ipairs(files) do
-        local text, readErr = QSF_Defs.readFile(path)
-
-        if not text then
-            QSF.warn(path .. ": " .. readErr)
-            rejected = rejected + 1
-        else
-            local decoded, jsonErr = QSF_Json.decode(text)
-
-            if not decoded then
-                QSF.warn(path .. ": " .. tostring(jsonErr))
-                rejected = rejected + 1
-            else
-                for _, raw in ipairs(QSF_npcList(decoded) or {}) do
-                    local npc, errors = QSF_Schema.normaliseNpc(raw, path)
-
-                    for _, message in ipairs(errors or {}) do
-                        QSF.warn(message)
-                        warnings = warnings + 1
-                    end
-
-                    if npc then
-                        if npcs[npc.key] then
-                            QSF.warn("npc " .. npc.key .. ": already defined in " .. tostring(npcSources[npc.key])
-                                .. ", the copy in " .. path .. " wins")
-                        else
-                            npcCount = npcCount + 1
-                        end
-                        -- only these can be taken away again from inside the game.
-                        npc.placed = QSF_isPlacedFile(path)
-                        npcs[npc.key] = npc
-                        npcSources[npc.key] = path
-                    else
-                        rejected = rejected + 1
-                    end
-                end
-
-                local list = QSF_questList(decoded)
-
-                if not list then
-                    QSF.warn(path .. ": expected a list of quests, or an object with a quests list")
-                    rejected = rejected + 1
-                else
-                    for _, raw in ipairs(list) do
-                        local def, errors = QSF_Schema.normalise(raw, path)
-
-                        for _, message in ipairs(errors or {}) do
-                            QSF.warn(message)
-                            warnings = warnings + 1
-                        end
-
-                        if def then
-                            if defs[def.key] then
-                                QSF.warn(def.key .. ": already defined in " .. tostring(sources[def.key])
-                                    .. ", the copy in " .. path .. " wins")
-                            end
-                            defs[def.key] = def
-                            sources[def.key] = path
-                            loadedCount = loadedCount + 1
-                        else
-                            rejected = rejected + 1
-                        end
-                    end
-                end
-            end
+        local decoded = QSF_readJson(path, tally)
+        if decoded then
+            QSF_addNpcs(decoded, path, npcs, npcSources, tally)
+            QSF_addQuests(decoded, path, defs, sources, tally)
         end
     end
 
-    for _, message in ipairs(QSF_Schema.crossValidate(defs, npcs)) do
-        QSF.warn(message)
-        warnings = warnings + 1
-    end
+    QSF_warnAll(QSF_Schema.crossValidate(defs, npcs), tally)
 
     QSF_Defs.all = defs
     QSF_Defs.ordered = QSF_Defs.sort(defs)
     QSF_Defs.npcs = npcs
     QSF_Defs.loaded = true
 
-    QSF.log(#files .. " files, " .. loadedCount .. " quests loaded, "
-        .. rejected .. " rejected, " .. warnings .. " warnings")
+    QSF.log(#files .. " files, " .. tally.quests .. " quests loaded, "
+        .. tally.rejected .. " rejected, " .. tally.warnings .. " warnings")
 
     -- its own line, and only when there are any, so the summary above reads the way it
     -- always has on a server that never uses them.
-    if npcCount > 0 then QSF.log(npcCount .. " npcs loaded") end
+    if tally.npcs > 0 then QSF.log(tally.npcs .. " npcs loaded") end
 
     if #files == 0 then
         QSF.log("no quest files found. drop .json files into Zomboid/Lua/" .. QSF.DIR .. "/")
