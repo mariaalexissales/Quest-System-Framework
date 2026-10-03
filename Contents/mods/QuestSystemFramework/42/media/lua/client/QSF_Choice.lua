@@ -101,17 +101,17 @@ function QSF_Choice:onOk()
     if callback then callback(target, key, pick) end
 end
 
+-- the quest is still active and still complete, so the footer button goes back to reading
+-- Turn In and nothing was spent.
 function QSF_Choice:onCancel()
     self:close()
-
-    -- the quest is still active and still complete, so the footer button goes back to
-    -- reading Turn In and nothing was spent.
-    if self.target and self.target.onCancelChoice then
-        self.target:onCancelChoice()
-    end
 end
 
 function QSF_Choice:close()
+    -- whoever opened it is holding it as a guard, and is let go of here whichever way
+    -- it closes.
+    if self.target and self.target.choiceModal == self then self.target.choiceModal = nil end
+
     self:setVisible(false)
     self:removeFromUIManager()
 end
@@ -123,9 +123,12 @@ function QSF_Choice:render()
         QSF_Theme.COL_TITLE, UIFont.Medium)
 end
 
--- centred on the screen the way the teleport prompt is, and handed back so the caller can
--- hold it as its own reentrancy guard.
+-- centred on the screen the way the teleport prompt is. the target holds it as choiceModal
+-- until it closes: nothing under a picker stops being clickable, and a second press would
+-- otherwise stack a second one on the first.
 function QSF_Choice.show(def, key, target, onConfirm)
+    if target.choiceModal then return target.choiceModal end
+
     local choice = def and def.rewards and def.rewards.choice
     if not choice or #choice.options == 0 then return nil end
 
@@ -140,5 +143,12 @@ function QSF_Choice.show(def, key, target, onConfirm)
     picker:addToUIManager()
     picker:bringToTop()
 
+    target.choiceModal = picker
     return picker
+end
+
+-- for a window that is closing with its picker still up. the picker is a top-level window,
+-- so it would otherwise outlive whatever it belongs to.
+function QSF_Choice.dismiss(target)
+    if target.choiceModal then target.choiceModal:close() end
 end

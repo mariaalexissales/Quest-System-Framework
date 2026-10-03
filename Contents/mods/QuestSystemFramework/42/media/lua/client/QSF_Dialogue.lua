@@ -316,9 +316,7 @@ function QSF_Dialogue:onPrimary()
         QSF_ClientState.accept(key)
     elseif self.primaryAction == "turnin" then
         if def.rewards and def.rewards.choice then
-            -- guarded the way the log guards it: a second press would stack a second picker.
-            if self.choiceModal then return end
-            self.choiceModal = QSF_Choice.show(def, key, self, QSF_Dialogue.onConfirmChoice)
+            QSF_Choice.show(def, key, self, QSF_Dialogue.onConfirmChoice)
             return
         end
         QSF_ClientState.claim(key)
@@ -331,15 +329,10 @@ function QSF_Dialogue:onPrimary()
 end
 
 function QSF_Dialogue:onConfirmChoice(key, pick)
-    self.choiceModal = nil
     if not key or not pick then return end
 
     QSF_ClientState.claim(key, pick)
     self:show(nil)
-end
-
-function QSF_Dialogue:onCancelChoice()
-    self.choiceModal = nil
 end
 
 function QSF_Dialogue:update()
@@ -371,11 +364,7 @@ function QSF_Dialogue:update()
 end
 
 function QSF_Dialogue:close()
-    -- the picker is a top-level window, so it would otherwise outlive the conversation.
-    if self.choiceModal then
-        self.choiceModal:close()
-        self.choiceModal = nil
-    end
+    QSF_Choice.dismiss(self)
 
     if QSF_Dialogue.instance == self then QSF_Dialogue.instance = nil end
 
