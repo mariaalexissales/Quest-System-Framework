@@ -337,15 +337,13 @@ by the time they get to it.
 A conversation lists the first ten things an NPC has for a player. Past that the rest don't fit.
 Give the eleventh to somebody else.
 
-A file with a syntax error in it logs a warning naming the file and the line, and then, because of
-how the game's Lua runtime reports errors, a long Java stack trace as well. It looks like a crash.
-It isn't one. That file is dropped, every other file still loads, and the server carries on. If you
-want to see it for yourself, drop a deliberately broken `.json` in the folder and hit Reload:
+A file with a syntax error in it costs you that file and one line in the log, naming the file and
+the line the mistake is on:
 
-```json
-{ "quests": [ { "key": "oops"
+```
+[QSF] WARN: QuestFramework/quests.json: line 14: expected a comma or a closing brace in object
 ```
 
-You'll get the warning, the trace, and then the usual summary line with that file counted under
-rejected. If you're running with the debugger's Break On Error turned on it will stop there too,
-which is the debugger doing its job rather than a sign anything is wrong.
+Every other file still loads, and the summary line counts the bad one under rejected. Fix it and
+hit Reload. The warning comes back on every reload until you do, and placing or removing an NPC in
+game is a reload.
