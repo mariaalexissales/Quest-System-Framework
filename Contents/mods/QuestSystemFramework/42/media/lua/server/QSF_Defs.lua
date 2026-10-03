@@ -13,6 +13,7 @@ QSF_Defs = QSF_Defs or {}
 
 QSF_Defs.all = QSF_Defs.all or {}
 QSF_Defs.ordered = QSF_Defs.ordered or {}
+QSF_Defs.npcs = QSF_Defs.npcs or {}
 QSF_Defs.loaded = false
 
 -- if the listing gives us nothing, this name always works.
@@ -131,11 +132,25 @@ local function QSF_questList(decoded)
     return decoded
 end
 
+-- npcs ride along in the same files under their own key, so one file can hold a giver
+-- and the quests it hands out. a bare array has nowhere to put them.
+local function QSF_npcList(decoded)
+    if type(decoded) ~= "table" or type(decoded.npcs) ~= "table" then return nil end
+    return decoded.npcs
+end
+
+-- the listing hands back a bare name or a path, so only the tail is compared.
+local function QSF_isPlacedFile(path)
+    return path:sub(-#QSF.NPC_FILE):lower() == QSF.NPC_FILE
+end
+
 function QSF_Defs.load()
     local defs = {}
     local sources = {}
+    local npcs = {}
+    local npcSources = {}
     local files = QSF_Defs.listFiles()
-    local loadedCount, rejected, warnings = 0, 0, 0
+    local loadedCount, npcCount, rejected, warnings = 0, 0, 0, 0
 
     for _, path in ipairs(files) do
         local text, readErr = QSF_Defs.readFile(path)
@@ -150,6 +165,30 @@ function QSF_Defs.load()
                 QSF.warn(path .. ": " .. tostring(jsonErr))
                 rejected = rejected + 1
             else
+                for _, raw in ipairs(QSF_npcList(decoded) or {}) do
+                    local npc, errors = QSF_Schema.normaliseNpc(raw, path)
+
+                    for _, message in ipairs(errors or {}) do
+                        QSF.warn(message)
+                        warnings = warnings + 1
+                    end
+
+                    if npc then
+                        if npcs[npc.key] then
+                            QSF.warn("npc " .. npc.key .. ": already defined in " .. tostring(npcSources[npc.key])
+                                .. ", the copy in " .. path .. " wins")
+                        else
+                            npcCount = npcCount + 1
+                        end
+                        -- only these can be taken away again from inside the game.
+                        npc.placed = QSF_isPlacedFile(path)
+                        npcs[npc.key] = npc
+                        npcSources[npc.key] = path
+                    else
+                        rejected = rejected + 1
+                    end
+                end
+
                 local list = QSF_questList(decoded)
 
                 if not list then
@@ -181,17 +220,22 @@ function QSF_Defs.load()
         end
     end
 
-    for _, message in ipairs(QSF_Schema.crossValidate(defs)) do
+    for _, message in ipairs(QSF_Schema.crossValidate(defs, npcs)) do
         QSF.warn(message)
         warnings = warnings + 1
     end
 
     QSF_Defs.all = defs
     QSF_Defs.ordered = QSF_Defs.sort(defs)
+    QSF_Defs.npcs = npcs
     QSF_Defs.loaded = true
 
     QSF.log(#files .. " files, " .. loadedCount .. " quests loaded, "
         .. rejected .. " rejected, " .. warnings .. " warnings")
+
+    -- its own line, and only when there are any, so the summary above reads the way it
+    -- always has on a server that never uses them.
+    if npcCount > 0 then QSF.log(npcCount .. " npcs loaded") end
 
     if #files == 0 then
         QSF.log("no quest files found. drop .json files into Zomboid/Lua/" .. QSF.DIR .. "/")
@@ -215,6 +259,10 @@ end
 
 function QSF_Defs.get(key)
     return QSF_Defs.all[key]
+end
+
+function QSF_Defs.npc(key)
+    return key and QSF_Defs.npcs[key] or nil
 end
 
 -- Reload goes straight to load(), so only a server start can seed.

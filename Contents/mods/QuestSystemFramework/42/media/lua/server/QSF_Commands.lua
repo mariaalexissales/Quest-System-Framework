@@ -38,6 +38,8 @@ local function QSF_wireDefs()
             rewards = def.rewards,
             repeatable = def.repeatable,
             autoComplete = def.autoComplete,
+            giver = def.giver,
+            dialogue = def.dialogue,
             sig = def.sig,
         }
     end
@@ -45,8 +47,34 @@ local function QSF_wireDefs()
     return wire
 end
 
-function QSF_Commands.sendDefs(player)
-    local wire = QSF_wireDefs()
+-- sorted, because pairs() would hand every client the list in a different order.
+local function QSF_wireNpcs()
+    local wire = {}
+
+    for _, npc in pairs(QSF_Defs.npcs) do
+        wire[#wire + 1] = {
+            key = npc.key,
+            name = npc.name,
+            x = npc.x,
+            y = npc.y,
+            z = npc.z,
+            outfit = npc.outfit,
+            female = npc.female,
+            skin = npc.skin,
+            facing = npc.facing,
+            greeting = npc.greeting,
+            placed = npc.placed,
+        }
+    end
+
+    table.sort(wire, function(a, b) return a.key < b.key end)
+
+    return wire
+end
+
+-- an empty list still goes out as one piece, so a reload that removed the last of
+-- something reaches the client as "none" rather than as nothing at all.
+local function QSF_sendPieces(player, command, field, wire)
     local total = math.max(1, math.ceil(#wire / CHUNK))
 
     for index = 1, total do
@@ -55,8 +83,16 @@ function QSF_Commands.sendDefs(player)
             local at = (index - 1) * CHUNK + offset
             if wire[at] then piece[#piece + 1] = wire[at] end
         end
-        QSF_Net.toClient(player, "defs", { i = index, n = total, quests = piece })
+        QSF_Net.toClient(player, command, { i = index, n = total, [field] = piece })
     end
+end
+
+function QSF_Commands.sendDefs(player)
+    QSF_sendPieces(player, "defs", "quests", QSF_wireDefs())
+end
+
+function QSF_Commands.sendNpcs(player)
+    QSF_sendPieces(player, "npcs", "npcs", QSF_wireNpcs())
 end
 
 QSF_Commands.handlers = {}
@@ -66,6 +102,7 @@ function QSF_Commands.handlers.hello(player)
 
     QSF_State.reconcile(player:getUsername(), QSF_Defs.all)
     QSF_Commands.sendDefs(player)
+    QSF_Commands.sendNpcs(player)
     QSF_State.sendSnapshot(player)
 end
 
@@ -184,11 +221,13 @@ function QSF_Commands.handlers.reload(player)
             local other = players:get(i)
             QSF_State.reconcile(other:getUsername(), QSF_Defs.all)
             QSF_Commands.sendDefs(other)
+            QSF_Commands.sendNpcs(other)
             QSF_State.sendSnapshot(other)
         end
     else
         QSF_State.reconcile(player:getUsername(), QSF_Defs.all)
         QSF_Commands.sendDefs(player)
+        QSF_Commands.sendNpcs(player)
         QSF_State.sendSnapshot(player)
     end
 

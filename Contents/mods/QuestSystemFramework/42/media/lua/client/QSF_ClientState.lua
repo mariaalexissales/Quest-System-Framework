@@ -13,12 +13,14 @@ QSF_ClientState.defs = QSF_ClientState.defs or {}
 QSF_ClientState.ordered = QSF_ClientState.ordered or {}
 QSF_ClientState.state = QSF_ClientState.state or {}
 QSF_ClientState.collect = QSF_ClientState.collect or {}
+QSF_ClientState.npcs = QSF_ClientState.npcs or {}
 QSF_ClientState.ready = false
 QSF_ClientState.revision = 0
 
 QSF_ClientState.lastToast = nil
 
 local pending = nil
+local pendingNpcs = nil
 
 local function QSF_touch()
     QSF_ClientState.revision = QSF_ClientState.revision + 1
@@ -54,6 +56,24 @@ function handlers.defs(args)
         QSF_ClientState.defs = pending
         pending = nil
         QSF_reorder()
+        QSF_touch()
+    end
+end
+
+-- staged the same way, and replaced whole: a reload that dropped an npc has to drop it
+-- here too, which a merge never would.
+function handlers.npcs(args)
+    if not args then return end
+
+    if not pendingNpcs or args.i == 1 then pendingNpcs = {} end
+
+    for _, npc in ipairs(args.npcs or {}) do
+        pendingNpcs[npc.key] = npc
+    end
+
+    if args.i >= args.n then
+        QSF_ClientState.npcs = pendingNpcs
+        pendingNpcs = nil
         QSF_touch()
     end
 end
