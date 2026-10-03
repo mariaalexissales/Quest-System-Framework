@@ -74,6 +74,11 @@ function QSF_Verify.claim(player, key, pick)
         return false, "Changed"
     end
 
+    -- here rather than in the command, so there is no way to be paid that skips it.
+    if not QSF_Rules.atGiver(def, QSF_Defs.npcs, player) then
+        return false, "TooFar"
+    end
+
     -- before anything is taken, so a stale or crafted pick cannot cost the player their
     -- items and leave the quest unpaid.
     if def.rewards and def.rewards.choice then

@@ -32,5 +32,19 @@
     "IGUI_QSF_OnCooldown": "Available again in %1 hours",
     "IGUI_QSF_MaxTurnins": "Completed as many times as allowed",
     "IGUI_QSF_AlreadyDone": "Already completed",
-    "IGUI_QSF_NeedPick": "Pick a reward first"
+    "IGUI_QSF_NeedPick": "Pick a reward first",
+    "IGUI_QSF_TalkTo": "Talk to %1",
+    "IGUI_QSF_Goodbye": "Goodbye",
+    "IGUI_QSF_Back": "Back",
+    "IGUI_QSF_GiverOffer": "Offered by %1",
+    "IGUI_QSF_GiverReturn": "Hand in to %1",
+    "IGUI_QSF_TagReady": "(ready to hand in)",
+    "IGUI_QSF_TagActive": "(in progress)",
+    "IGUI_QSF_TagLocked": "(locked)",
+    "IGUI_QSF_Npc_Greeting": "What do you need?",
+    "IGUI_QSF_Npc_Nothing": "I've got nothing for you right now.",
+    "IGUI_QSF_Npc_Offer": "I've got work, if you want it.",
+    "IGUI_QSF_Npc_Progress": "Not done yet? Come back when it is.",
+    "IGUI_QSF_Npc_Complete": "That's everything. Here, you've earned it.",
+    "IGUI_QSF_Npc_Locked": "You're not ready for this one yet."
 }

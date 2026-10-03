@@ -170,6 +170,9 @@ function QSF_Panel:onAction()
 
     if rec and rec.status == "active" then
         if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
+            -- the button is greyed for these, but a click can beat the refresh that greys it.
+            if def.giver then return end
+
             if def.rewards and def.rewards.choice then
                 self:onChoose(def)
             else
@@ -180,6 +183,8 @@ function QSF_Panel:onAction()
         end
         return
     end
+
+    if def.giver then return end
 
     QSF_ClientState.accept(self.selected)
 end
@@ -255,6 +260,8 @@ function QSF_Panel:buildRows()
             wanted = status ~= "active" and (status ~= "done" or ok)
             -- hidden means it should not even hint at itself yet.
             if wanted and not ok and def.prereqs and def.prereqs.hidden then wanted = false end
+            -- on offer from somebody out in the world, and found by going there.
+            if def.giver then wanted = false end
         end
 
         if wanted then
@@ -337,18 +344,23 @@ function QSF_Panel:updateAction()
 
     if rec and rec.status == "active" then
         if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
+            -- still reads Turn In, greyed, rather than swapping to Abandon: the same spot
+            -- on the same button throwing a finished quest away would be a trap. the
+            -- pane says who to take it back to.
             self.action:setTitle(getText("IGUI_QSF_TurnIn"))
+            self.action:setEnable(not def.giver)
         else
             self.action:setTitle(getText("IGUI_QSF_Abandon"))
+            self.action:setEnable(true)
         end
-        self.action:setEnable(true)
         return
     end
 
-    -- the same predicate the row greyed itself with.
+    -- the same predicate the row greyed itself with. a giver quest only reaches this on
+    -- Completed, as a repeatable that is ready again, and is taken from the giver.
     local ok = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
     self.action:setTitle(getText("IGUI_QSF_Accept"))
-    self.action:setEnable(ok == true)
+    self.action:setEnable(ok == true and not def.giver)
 end
 
 -- only reachable on a quest the player is actually on, so it is hidden outright rather

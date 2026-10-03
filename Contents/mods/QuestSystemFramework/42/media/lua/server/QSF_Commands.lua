@@ -127,6 +127,13 @@ function QSF_Commands.handlers.accept(player, args)
         return
     end
 
+    -- measured against the server's own npc and the player it can see. the dialogue only
+    -- opens in reach, so this is a window left open while walking off, or a crafted packet.
+    if not QSF_Rules.atGiver(def, QSF_Defs.npcs, player) then
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = "TooFar" })
+        return
+    end
+
     QSF_State.accept(username, def)
     QSF_State.push(username, args.key)
     QSF_Net.toClient(player, "toast", { kind = "accepted", key = args.key })

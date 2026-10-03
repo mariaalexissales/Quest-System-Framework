@@ -42,6 +42,19 @@ function QSF_Rules.isNear(x, y, z, npc, tiles)
     return (dx * dx + dy * dy) <= (tiles * tiles)
 end
 
+function QSF_Rules.inReach(player, npc)
+    if not player or not npc then return false end
+    return QSF_Rules.isNear(player:getX(), player:getY(), player:getZ(), npc, QSF.NPC_REACH)
+end
+
+-- the same split as canAccept: the dialogue only offers a quest with this and the server
+-- only takes or pays one with it. npcs is the table either side keeps, by key. a quest
+-- with no giver is dealt with from the log, wherever the player is.
+function QSF_Rules.atGiver(def, npcs, player)
+    if not def or not def.giver then return true end
+    return QSF_Rules.inReach(player, npcs and npcs[def.giver])
+end
+
 -- what one npc hands out, in the order the log would list it. ordered is the sorted quest
 -- list either side already keeps.
 function QSF_Rules.npcQuests(npcKey, ordered)

@@ -24,6 +24,12 @@ function QSF_Detail:new(x, y, width, height)
     self.__index = self
 
     o.key = nil
+
+    -- the dialogue turns both off: the npc is saying the description itself, and the
+    -- player is already standing in front of who to go back to.
+    o.showBody = true
+    o.showGiver = true
+
     o.backgroundColor = { r = 0, g = 0, b = 0, a = 0 }
     o.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     o.moveWithMouse = false
@@ -106,7 +112,7 @@ function QSF_Detail:render()
         return
     end
 
-    if self.body then self.body:setVisible(true) end
+    if self.body then self.body:setVisible(self.showBody) end
 
     local rec = QSF_ClientState.record(self.key)
     local counts = QSF_ClientState.counts()
@@ -122,10 +128,20 @@ function QSF_Detail:render()
         y = y + self.lineHeight
     end
 
+    -- a giver quest cannot be taken or handed in from here, so say where it can.
+    local giver = self.showGiver and def.giver and QSF_ClientState.npcs[def.giver] or nil
+    if giver then
+        local active = rec and rec.status == "active"
+        local text = getText(active and "IGUI_QSF_GiverReturn" or "IGUI_QSF_GiverOffer", giver.name)
+        self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2, UIFont.Small), PAD, y,
+            QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+        y = y + self.lineHeight
+    end
+
     y = y + GAP
 
     self:refreshBody(def)
-    if self.body then
+    if self.body and self.showBody then
         self.body:setY(y)
         y = y + self.body:getHeight() + GAP
     end
