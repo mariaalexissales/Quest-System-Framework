@@ -103,6 +103,11 @@ Perk names are the engine's, not the ones on the character sheet. These four cat
 | First Aid | `Doctor` |
 | Lightfooted | `Lightfoot` |
 
+That's only for the file. Players are shown the character sheet's name, so `"Woodwork": 3` reads
+as "Requires Carpentry 3" and an XP reward as "Carpentry +500 XP".
+
+A name the game doesn't know gets named in the log and dropped, the same as an item.
+
 There's no character level in this game, so `kills` and `daysSurvived` are the closest you'll get.
 
 ## Locations
