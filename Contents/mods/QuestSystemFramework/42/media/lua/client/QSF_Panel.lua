@@ -191,16 +191,8 @@ function QSF_Panel:onTeleport()
     -- prompt on the first. vanilla guards its sleep dialog the same way.
     if self.teleportModal then return end
 
-    local modal = ISModalDialog:new(
-        getCore():getScreenWidth() / 2 - 175, getCore():getScreenHeight() / 2 - 75, 350, 150,
-        getText("IGUI_QSF_TeleportConfirm"), true, self, QSF_Panel.onConfirmTeleport,
-        self.playerNum, self.selected)
-
-    modal:initialise()
-    modal:addToUIManager()
-    modal:bringToTop()
-
-    self.teleportModal = modal
+    self.teleportModal = QSF_Theme.confirm(getText("IGUI_QSF_TeleportConfirm"), self,
+        QSF_Panel.onConfirmTeleport, self.playerNum, self.selected)
 end
 
 -- the key travels with the modal, so a selection that moves while it is open cannot send
@@ -483,10 +475,10 @@ function QSF.openPanel(player)
     end
 
     local width, height = 880, 600
-    local x = data.x or (getCore():getScreenWidth() - width) / 2
-    local y = data.y or (getCore():getScreenHeight() - height) / 2
+    local x, y = QSF_Theme.centre(width, height)
 
-    local window = QSF_Panel:new(x, y, width, height, player)
+    -- back where it was last left, if it has been open before.
+    local window = QSF_Panel:new(data.x or x, data.y or y, width, height, player)
     window:initialise()
     window:instantiate()
     window:addToUIManager()

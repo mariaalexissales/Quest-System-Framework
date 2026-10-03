@@ -132,8 +132,7 @@ function QSF_Choice.show(def, key, target, onConfirm)
     local headerHeight = getTextManager():getFontHeight(UIFont.Medium)
     local height = QSF_height(#choice.options, headerHeight)
 
-    local x = getCore():getScreenWidth() / 2 - WIDTH / 2
-    local y = getCore():getScreenHeight() / 2 - height / 2
+    local x, y = QSF_Theme.centre(WIDTH, height)
 
     local picker = QSF_Choice:new(x, y, WIDTH, height, def, key, target, onConfirm)
     picker:initialise()

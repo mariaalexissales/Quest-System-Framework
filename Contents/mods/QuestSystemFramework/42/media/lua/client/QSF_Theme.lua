@@ -60,6 +60,25 @@ function QSF_Theme.attach(parent, child, anchors)
     return child
 end
 
+-- the top-left corner that puts something this size in the middle of the screen.
+function QSF_Theme.centre(width, height)
+    return (getCore():getScreenWidth() - width) / 2, (getCore():getScreenHeight() - height) / 2
+end
+
+-- a yes or no prompt, mid-screen. the callback gets the button and then param. nothing
+-- under a modal stops being clickable, so the caller holds what this returns if a second
+-- press must not stack a second prompt.
+function QSF_Theme.confirm(text, target, callback, playerNum, param)
+    local x, y = QSF_Theme.centre(350, 150)
+    local modal = ISModalDialog:new(x, y, 350, 150, text, true, target, callback, playerNum, param)
+
+    modal:initialise()
+    modal:addToUIManager()
+    modal:bringToTop()
+
+    return modal
+end
+
 -- getItemDisplayName is empty for a type the game does not know, and the full type is more
 -- use to whoever wrote the quest than a blank line would be.
 function QSF_Theme.itemName(fullType)

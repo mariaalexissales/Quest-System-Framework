@@ -398,8 +398,7 @@ function QSF_Dialogue.open(player, npcKey)
 
     if QSF_Dialogue.instance then QSF_Dialogue.instance:close() end
 
-    local x = (getCore():getScreenWidth() - WIDTH) / 2
-    local y = (getCore():getScreenHeight() - HEIGHT) / 2
+    local x, y = QSF_Theme.centre(WIDTH, HEIGHT)
 
     local window = QSF_Dialogue:new(x, y, player, npc)
     window:initialise()
