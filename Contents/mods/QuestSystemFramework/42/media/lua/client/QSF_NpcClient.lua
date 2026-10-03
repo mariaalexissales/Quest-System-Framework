@@ -124,6 +124,9 @@ local function QSF_pacify(zombie, npc)
     zombie:setTarget(nil)
     zombie:setEatBodyTarget(nil, false)
 
+    -- covers what never goes through a weapon: fire, and the front of a car.
+    zombie:setInvulnerable(true)
+
     -- a noise still turns its head, and the turn is a zombie's.
     if zombie:getActionStateName() == "turnalerted" then
         zombie:changeState(ZombieIdleState.instance())
@@ -150,6 +153,7 @@ local function QSF_release(zombie)
     zombie:setVariable(FLAG, false)
     zombie:setUseless(false)
     zombie:setNoTeeth(false)
+    zombie:setInvulnerable(false)
 end
 
 local function QSF_onZombieUpdate(zombie)
@@ -193,3 +197,13 @@ function QSF_NpcClient.bodyOf(key)
 end
 
 Events.OnZombieUpdate.Add(QSF_onZombieUpdate)
+
+-- fired before the engine looks at its own avoid flag, so the swing is thrown away whole:
+-- no damage, and none of the stagger an invulnerable zombie would still be given. the
+-- swing is worked out on the machine that made it, which is why this is here as well as
+-- on the server.
+local function QSF_onHitZombie(zombie)
+    if QSF_NpcClient.npcOf(zombie) then zombie:setAvoidDamage(true) end
+end
+
+Events.OnHitZombie.Add(QSF_onHitZombie)

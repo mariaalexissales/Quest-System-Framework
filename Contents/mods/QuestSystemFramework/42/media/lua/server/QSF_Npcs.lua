@@ -32,6 +32,9 @@ local warned = {}
 -- can still be found and taken away instead of being left where it landed.
 local lastBody = {}
 
+-- runtime only. npcs that were killed in spite of everything, and are owed a tidy-up.
+local died = {}
+
 -- once per message: the pass runs every two seconds for as long as the server is up.
 local function QSF_warnOnce(message)
     if warned[message] then return end
@@ -111,10 +114,31 @@ function QSF_Npcs.settle(zombie)
     zombie:setUseless(true)
     zombie:setNoTeeth(true)
     zombie:setTarget(nil)
+
+    -- covers what never goes through a weapon: fire, and the front of a car.
+    zombie:setInvulnerable(true)
 end
 
--- the engine's own invulnerable argument is left false: it goes through setGodMod, which
--- is switched straight back off for anything that is not a player.
+-- the npc this zombie is the body of, if it is one.
+function QSF_Npcs.npcOf(zombie)
+    if not zombie or not QSF_Npcs.state then return nil end
+
+    local id = QSF_Rules.npcId(zombie)
+
+    for key, st in pairs(QSF_Npcs.state) do
+        if st.id == id then
+            local npc = QSF_Defs.npcs[key]
+            if npc and QSF_Rules.isNear(zombie:getX(), zombie:getY(), zombie:getZ(), npc, QSF.NPC_LEASH) then
+                return npc
+            end
+        end
+    end
+
+    return nil
+end
+
+-- the spawn call's own invulnerable argument is left false: it goes through setGodMod,
+-- which is switched straight back off for anything that is not a player.
 local function QSF_spawn(npc, st)
     local spawned = addZombiesInOutfit(npc.x, npc.y, npc.z, 1, npc.outfit, npc.female and 100 or 0,
         false, false, false, false, false, false, 1)
@@ -224,8 +248,34 @@ local function QSF_nearest(bodies, npc)
     return best, bestDist
 end
 
+-- only ever after an npc died, which nothing should be able to cause. a corpse carries
+-- the outfit's loot, and one that comes back every few seconds would be a tap.
+local function QSF_clearCorpse(npc)
+    local cell = getCell()
+
+    for dx = -QSF.NPC_LEASH, QSF.NPC_LEASH do
+        for dy = -QSF.NPC_LEASH, QSF.NPC_LEASH do
+            local square = cell:getGridSquare(npc.x + dx, npc.y + dy, npc.z)
+            local corpses = square and square:getDeadBodys() or nil
+
+            -- backwards, since taking one out shuffles the rest down.
+            for i = (corpses and corpses:size() or 0) - 1, 0, -1 do
+                local corpse = corpses:get(i)
+                if corpse:getOutfitName() == npc.outfit then
+                    square:removeCorpse(corpse, false)
+                end
+            end
+        end
+    end
+end
+
 -- returns true when the npc was given an id it did not have before.
 local function QSF_ensureOne(npc, st)
+    if died[npc.key] then
+        died[npc.key] = nil
+        QSF_clearCorpse(npc)
+    end
+
     local bodies = QSF_bodies(npc.x, npc.y, npc.z, st.id)
     local keep, dist = QSF_nearest(bodies, npc)
 
@@ -316,6 +366,29 @@ end
 -- fire OnTick, and on its own would sprint whenever everyone slept.
 Events.OnTick.Add(QSF_tick)
 Events.EveryOneMinute.Add(QSF_tick)
+
+-- fired before the engine looks at its own avoid flag, so the swing is thrown away whole:
+-- no damage, and none of the stagger an invulnerable zombie would still be given.
+local function QSF_onHitZombie(zombie)
+    if QSF_Npcs.npcOf(zombie) then zombie:setAvoidDamage(true) end
+end
+
+Events.OnHitZombie.Add(QSF_onHitZombie)
+
+-- nothing is meant to get this far. if something does, the next pass stands a new one up
+-- without waiting, and takes the old one's corpse away.
+local function QSF_onZombieDead(zombie)
+    local npc = QSF_Npcs.npcOf(zombie)
+    if not npc then return end
+
+    QSF.warn("npc " .. npc.key .. " was killed and will be replaced")
+
+    died[npc.key] = true
+    misses[npc.key] = MISSES
+    lastBody[npc.key] = nil
+end
+
+Events.OnZombieDead.Add(QSF_onZombieDead)
 
 Events.OnInitGlobalModData.Add(function()
     QSF_Npcs.data()
