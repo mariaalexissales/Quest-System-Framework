@@ -189,11 +189,41 @@ function QSF_NpcClient.npcOf(zombie)
 end
 
 -- the body is only trusted while it is still where an npc should be: the object outlives
--- the npc and comes back as something else.
+-- the npc, sits in the engine's pool with its last position, and comes back as something
+-- else.
 function QSF_NpcClient.bodyOf(key)
     local zombie = QSF_NpcClient.bodies[key]
     if not zombie or dressed[zombie] ~= key then return nil end
+
+    local npc = QSF_ClientState.npcs[key]
+    if not npc or not zombie:getCurrentSquare() then return nil end
+    if not QSF_Rules.isNear(zombie:getX(), zombie:getY(), zombie:getZ(), npc, QSF.NPC_LEASH) then return nil end
+
     return zombie
+end
+
+-- gold "?" beats gold "!" beats grey "?": something to hand in matters more than
+-- something new, and either matters more than a reminder. nil is nothing to say.
+function QSF_NpcClient.status(npcKey, player)
+    local available, progress = false, false
+    local counts = QSF_ClientState.counts()
+
+    for _, def in ipairs(QSF_Rules.npcQuests(npcKey, QSF_ClientState.ordered)) do
+        local rec = QSF_ClientState.record(def.key)
+
+        if rec and rec.status == "active" then
+            if QSF_Rules.isComplete(def, rec, counts) then return "turnin" end
+            progress = true
+        elseif QSF_Rules.canAccept(def, rec, player, QSF_ClientState.state) then
+            -- the same test the log greys a row with, so a locked or hidden quest
+            -- raises no marker.
+            available = true
+        end
+    end
+
+    if available then return "available" end
+    if progress then return "progress" end
+    return nil
 end
 
 Events.OnZombieUpdate.Add(QSF_onZombieUpdate)

@@ -42,6 +42,18 @@ function QSF_Rules.isNear(x, y, z, npc, tiles)
     return (dx * dx + dy * dy) <= (tiles * tiles)
 end
 
+-- what one npc hands out, in the order the log would list it. ordered is the sorted quest
+-- list either side already keeps.
+function QSF_Rules.npcQuests(npcKey, ordered)
+    local out = {}
+
+    for _, def in ipairs(ordered or {}) do
+        if def.giver == npcKey then out[#out + 1] = def end
+    end
+
+    return out
+end
+
 -- the client greys a row with this and the server authorises with it, so a greyed row and
 -- a refused button cannot disagree. reason is a translation key suffix.
 function QSF_Rules.canAccept(def, rec, player, state)
