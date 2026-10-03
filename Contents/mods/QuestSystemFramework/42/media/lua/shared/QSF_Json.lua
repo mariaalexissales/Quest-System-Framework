@@ -255,3 +255,100 @@ function QSF_Json.decode(text)
     if result == nil then return nil, "top-level value is null" end
     return result
 end
+
+local ESCAPES_OUT = {
+    ['"'] = '\\"', ["\\"] = "\\\\", ["\b"] = "\\b",
+    ["\f"] = "\\f", ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t",
+}
+
+local HEX = "0123456789abcdef"
+
+-- only what json requires is escaped. the game reads and writes these files as utf-8, so
+-- an accented name goes out and comes back as itself.
+local function QSF_quote(text)
+    local out = {}
+
+    for i = 1, #text do
+        local c = text:sub(i, i)
+        local code = string.byte(c)
+
+        if ESCAPES_OUT[c] then
+            out[#out + 1] = ESCAPES_OUT[c]
+        elseif code < 32 then
+            local high, low = math.floor(code / 16) + 1, (code % 16) + 1
+            out[#out + 1] = "\\u00" .. HEX:sub(high, high) .. HEX:sub(low, low)
+        else
+            out[#out + 1] = c
+        end
+    end
+
+    return '"' .. table.concat(out) .. '"'
+end
+
+local function QSF_write(value, depth, rank, out)
+    local kind = type(value)
+
+    if kind == "string" then
+        out[#out + 1] = QSF_quote(value)
+    elseif kind == "number" then
+        -- every number is a double here, and a tile coordinate written as 10629.0 reads
+        -- like somebody made a mistake.
+        if value == math.floor(value) then
+            out[#out + 1] = string.format("%d", value)
+        else
+            out[#out + 1] = tostring(value)
+        end
+    elseif kind == "boolean" then
+        out[#out + 1] = value and "true" or "false"
+    elseif kind ~= "table" then
+        out[#out + 1] = "null"
+    elseif next(value) == nil then
+        -- lua cannot tell an empty list from an empty object. everything this writes
+        -- that can be empty is a list.
+        out[#out + 1] = "[]"
+    else
+        local inner = string.rep("  ", depth + 1)
+        local outer = string.rep("  ", depth)
+
+        if #value > 0 then
+            out[#out + 1] = "[\n"
+            for i, item in ipairs(value) do
+                out[#out + 1] = inner
+                QSF_write(item, depth + 1, rank, out)
+                out[#out + 1] = i < #value and ",\n" or "\n"
+            end
+            out[#out + 1] = outer .. "]"
+        else
+            -- pairs() has no order, and a file that reshuffles itself on every write
+            -- cannot be diffed or read.
+            local keys = {}
+            for key in pairs(value) do keys[#keys + 1] = tostring(key) end
+
+            table.sort(keys, function(a, b)
+                local ra, rb = rank[a], rank[b]
+                if ra and rb then return ra < rb end
+                if ra or rb then return ra ~= nil end
+                return a < b
+            end)
+
+            out[#out + 1] = "{\n"
+            for i, key in ipairs(keys) do
+                out[#out + 1] = inner .. QSF_quote(key) .. ": "
+                QSF_write(value[key], depth + 1, rank, out)
+                out[#out + 1] = i < #keys and ",\n" or "\n"
+            end
+            out[#out + 1] = outer .. "}"
+        end
+    end
+end
+
+-- written to be opened and edited by hand: indented, one key to a line. order names the
+-- keys to put first, in that order; anything else follows alphabetically.
+function QSF_Json.encode(value, order)
+    local rank = {}
+    for index, key in ipairs(order or {}) do rank[key] = index end
+
+    local out = {}
+    QSF_write(value, 0, rank, out)
+    return table.concat(out)
+end

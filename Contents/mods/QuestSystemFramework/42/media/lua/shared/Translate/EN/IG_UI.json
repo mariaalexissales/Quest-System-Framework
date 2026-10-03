@@ -46,5 +46,19 @@
     "IGUI_QSF_Npc_Offer": "I've got work, if you want it.",
     "IGUI_QSF_Npc_Progress": "Not done yet? Come back when it is.",
     "IGUI_QSF_Npc_Complete": "That's everything. Here, you've earned it.",
-    "IGUI_QSF_Npc_Locked": "You're not ready for this one yet."
+    "IGUI_QSF_Npc_Locked": "You're not ready for this one yet.",
+    "IGUI_QSF_PlaceNpc": "Place quest NPC here...",
+    "IGUI_QSF_RemoveNpc": "Remove %1",
+    "IGUI_QSF_RemoveNpcConfirm": "Remove %1? Any quests they give go back to the quest log.",
+    "IGUI_QSF_Place_Title": "New quest NPC",
+    "IGUI_QSF_Place_BadKey": "Give them a name, or a key of letters, digits, dot, dash or underscore",
+    "IGUI_QSF_Place_KeyTaken": "There is already an NPC with that key",
+    "IGUI_QSF_Place_MaleOutfit": "That outfit is male only",
+    "IGUI_QSF_Place_FemaleOutfit": "That outfit is female only",
+    "IGUI_QSF_Field_Key": "Key",
+    "IGUI_QSF_Field_Name": "Name",
+    "IGUI_QSF_Field_Outfit": "Outfit",
+    "IGUI_QSF_Field_Female": "Female",
+    "IGUI_QSF_Field_Skin": "Skin",
+    "IGUI_QSF_Field_Greeting": "Greeting"
 }

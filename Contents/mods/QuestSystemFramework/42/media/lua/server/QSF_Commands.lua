@@ -217,13 +217,9 @@ function QSF_Commands.handlers.kills(player, args)
     QSF_Kills.onReported(player, args)
 end
 
-function QSF_Commands.handlers.reload(player)
-    -- the button is only drawn for admins, but the client draws the button.
-    if not QSF.isAdmin(player) then
-        QSF.warn(tostring(player and player:getUsername()) .. " asked for a reload without permission")
-        return
-    end
-
+-- everything that changes what is defined ends here: read the files again, stand the
+-- npcs up or take them away, and tell everybody.
+local function QSF_reloadAll(player)
     QSF_Defs.load()
 
     -- straight away, so an npc taken out of the files is gone before the reply lands.
@@ -245,8 +241,83 @@ function QSF_Commands.handlers.reload(player)
         QSF_Commands.sendNpcs(player)
         QSF_State.sendSnapshot(player)
     end
+end
 
+-- the buttons are only drawn for admins, but the client draws the buttons.
+local function QSF_adminOnly(player, what)
+    if QSF.isAdmin(player) then return true end
+
+    QSF.warn(tostring(player and player:getUsername()) .. " asked to " .. what .. " without permission")
+    return false
+end
+
+function QSF_Commands.handlers.reload(player)
+    if not QSF_adminOnly(player, "reload") then return end
+
+    QSF_reloadAll(player)
     QSF_Net.toClient(player, "toast", { kind = "reloaded" })
+end
+
+-- the tile is the admin's to choose, so unlike everywhere else the coordinates in the
+-- packet are the point. everything else about the entry is held to the same standard as
+-- one read out of a file.
+function QSF_Commands.handlers.npcPlace(player, args)
+    if not QSF_adminOnly(player, "place an npc") then return end
+    if type(args) ~= "table" then return end
+
+    local npc, errors = QSF_Schema.normaliseNpc(args, QSF.NPC_FILE)
+
+    for _, message in ipairs(errors or {}) do QSF.warn(message) end
+
+    if not npc then
+        QSF_Net.toClient(player, "toast", { kind = "refused", reason = "BadNpc" })
+        return
+    end
+
+    -- the form checks this too, against a list that may be a reload behind.
+    if QSF_Defs.npc(npc.key) then
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = npc.key, reason = "KeyTaken" })
+        return
+    end
+
+    local placed = QSF_Defs.placed()
+    placed[#placed + 1] = npc
+
+    if not QSF_Defs.writePlaced(placed) then
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = npc.key, reason = "WriteFailed" })
+        return
+    end
+
+    QSF.log(tostring(player:getUsername()) .. " placed npc " .. npc.key
+        .. " at " .. npc.x .. "," .. npc.y .. "," .. npc.z)
+
+    -- back through the file rather than straight into the table, so what is standing in
+    -- the world is only ever what the files say.
+    QSF_reloadAll(player)
+end
+
+-- only ones the game placed. a hand-written npc is taken out of the file it was written
+-- in, by whoever wrote it.
+function QSF_Commands.handlers.npcRemove(player, args)
+    if not QSF_adminOnly(player, "remove an npc") then return end
+
+    local npc = args and QSF_Defs.npc(args.key) or nil
+    if not npc or not npc.placed then return end
+
+    local kept = {}
+    for _, other in ipairs(QSF_Defs.placed()) do
+        if other.key ~= npc.key then kept[#kept + 1] = other end
+    end
+
+    if not QSF_Defs.writePlaced(kept) then
+        QSF_Net.toClient(player, "toast", { kind = "refused", key = npc.key, reason = "WriteFailed" })
+        return
+    end
+
+    QSF.log(tostring(player:getUsername()) .. " removed npc " .. npc.key)
+
+    QSF_reloadAll(player)
+    QSF_Npcs.forget(npc.key)
 end
 
 local function QSF_onClientCommand(module, command, player, args)

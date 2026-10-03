@@ -265,6 +265,53 @@ function QSF_Defs.npc(key)
     return key and QSF_Defs.npcs[key] or nil
 end
 
+-- the order they are written in, which is the order somebody reading the file wants.
+local NPC_FIELDS = { "key", "name", "x", "y", "z", "outfit", "female", "skin", "facing", "greeting" }
+
+local PLACED_HEADER = "// written by the game whenever an admin places or removes an npc.\n"
+    .. "// edits made here are kept. an entry the game cannot read is dropped the next time it writes.\n"
+
+-- the npcs the game placed itself, sorted so the file does not reshuffle between writes.
+function QSF_Defs.placed()
+    local list = {}
+
+    for _, npc in pairs(QSF_Defs.npcs) do
+        if npc.placed then list[#list + 1] = npc end
+    end
+
+    table.sort(list, function(a, b) return a.key < b.key end)
+
+    return list
+end
+
+-- the whole file, every time. it is the one file in the folder nobody wrote by hand, so
+-- there are no comments or layout of anybody's to lose.
+function QSF_Defs.writePlaced(list)
+    local entries = {}
+
+    for index, npc in ipairs(list) do
+        local entry = {}
+        for _, field in ipairs(NPC_FIELDS) do entry[field] = npc[field] end
+        entries[index] = entry
+    end
+
+    local path = QSF.DIR .. "/" .. QSF.NPC_FILE
+    local text = PLACED_HEADER .. QSF_Json.encode({ npcs = entries }, NPC_FIELDS) .. "\n"
+
+    local ok, err = pcall(function()
+        local writer = getFileWriter(path, true, false)
+        writer:write(text)
+        writer:close()
+    end)
+
+    if not ok then
+        QSF.warn("could not write Zomboid/Lua/" .. path .. ": " .. tostring(err))
+        return false
+    end
+
+    return true
+end
+
 -- Reload goes straight to load(), so only a server start can seed.
 Events.OnInitGlobalModData.Add(function()
     QSF_Defs.seed()

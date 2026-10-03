@@ -7,6 +7,8 @@ require "QSF_Rules"
 require "QSF_ClientState"
 require "QSF_NpcClient"
 require "QSF_Dialogue"
+require "QSF_NpcPlace"
+require "ISUI/ISModalDialog"
 
 QSF = QSF or {}
 QSF_NpcMenu = QSF_NpcMenu or {}
@@ -76,22 +78,69 @@ function QSF_NpcMenu.onTalk(playerNum, npcKey)
     ISTimedActionQueue.add(walk)
 end
 
+-- on a server this is the admins. in singleplayer everybody is the admin of their own
+-- world, and an extra line on every right-click of every tile would be in the way of all
+-- the people who never place anyone. debug mode is how a singleplayer world says it is
+-- being worked on.
+local function QSF_canPlace(player)
+    if QSF.hasRemoteServer() then return QSF.isAdmin(player) end
+    return getDebug()
+end
+
+function QSF_NpcMenu.onPlace(playerNum, x, y, z)
+    QSF_NpcPlace.show(playerNum, x, y, z)
+end
+
+-- asked first: the quests this npc gave drop back into the log for everybody, which is
+-- not something to do with a slip of the mouse.
+function QSF_NpcMenu.onRemove(playerNum, npcKey)
+    local npc = QSF_ClientState.npcs[npcKey]
+    if not npc then return end
+
+    local modal = ISModalDialog:new(
+        getCore():getScreenWidth() / 2 - 175, getCore():getScreenHeight() / 2 - 75, 350, 150,
+        getText("IGUI_QSF_RemoveNpcConfirm", npc.name), true, nil, QSF_NpcMenu.onConfirmRemove,
+        playerNum, npcKey)
+
+    modal:initialise()
+    modal:addToUIManager()
+    modal:bringToTop()
+end
+
+function QSF_NpcMenu.onConfirmRemove(_, button, npcKey)
+    if button.internal ~= "YES" or not npcKey then return end
+    QSF_Net.toServer("npcRemove", { key = npcKey })
+end
+
 -- the Pre event, because the plain one is skipped inside a safehouse the player has no
 -- rights in, and an npc stood in somebody's base should still talk.
 local function QSF_onPreFill(playerNum, context, worldobjects, test)
     if playerNum ~= 0 then return end
-    if not next(QSF_ClientState.npcs) then return end
 
     local square = QSF_clickedSquare(worldobjects)
     if not square then return end
 
-    local npc = QSF_NpcMenu.npcNear(square)
-    if not npc then return end
+    local npc = next(QSF_ClientState.npcs) and QSF_NpcMenu.npcNear(square) or nil
+    local canPlace = QSF_canPlace(getSpecificPlayer(playerNum))
+
+    if not npc and not canPlace then return end
 
     -- a controller probing for whether there is anything to do here.
     if test then return ISWorldObjectContextMenu.setTest() end
 
-    context:addOption(getText("IGUI_QSF_TalkTo", npc.name), playerNum, QSF_NpcMenu.onTalk, npc.key)
+    if npc then
+        context:addOption(getText("IGUI_QSF_TalkTo", npc.name), playerNum, QSF_NpcMenu.onTalk, npc.key)
+    end
+
+    if not canPlace then return end
+
+    if not npc then
+        context:addOption(getText("IGUI_QSF_PlaceNpc"), playerNum, QSF_NpcMenu.onPlace,
+            square:getX(), square:getY(), square:getZ())
+    elseif npc.placed then
+        -- one written into a file by hand is taken out of that file by hand.
+        context:addOption(getText("IGUI_QSF_RemoveNpc", npc.name), playerNum, QSF_NpcMenu.onRemove, npc.key)
+    end
 end
 
 Events.OnPreFillWorldObjectContextMenu.Add(QSF_onPreFill)
