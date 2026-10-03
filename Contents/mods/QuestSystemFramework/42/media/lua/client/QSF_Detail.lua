@@ -74,26 +74,34 @@ function QSF_Detail:onResize()
     end
 end
 
--- extra is the level, and only a skill has one.
+-- why a quest cannot be taken, by the reason canAccept gave. these say it all by themselves.
+local PLAIN = {
+    MaxTurnins = "IGUI_QSF_MaxTurnins",
+    AlreadyDone = "IGUI_QSF_AlreadyDone",
+    NeedPick = "IGUI_QSF_NeedPick",
+}
+
+-- and these need the number that came with the reason.
+local COUNTED = {
+    NeedKills = "IGUI_QSF_NeedKills",
+    NeedDays = "IGUI_QSF_NeedDays",
+    OnCooldown = "IGUI_QSF_OnCooldown",
+}
+
+-- extra is the level, and only a skill has one. nil for a reason with no wording.
 local function QSF_reasonText(reason, detail, extra)
     if reason == "NeedQuest" then
         local def = QSF_ClientState.defs[detail]
         return getText("IGUI_QSF_NeedQuest", def and def.title or tostring(detail))
-    elseif reason == "NeedSkill" then
-        return getText("IGUI_QSF_NeedSkill", QSF_Theme.perkName(detail), tostring(extra))
-    elseif reason == "NeedKills" then
-        return getText("IGUI_QSF_NeedKills", tostring(detail))
-    elseif reason == "NeedDays" then
-        return getText("IGUI_QSF_NeedDays", tostring(detail))
-    elseif reason == "OnCooldown" then
-        return getText("IGUI_QSF_OnCooldown", tostring(detail))
-    elseif reason == "MaxTurnins" then
-        return getText("IGUI_QSF_MaxTurnins")
-    elseif reason == "AlreadyDone" then
-        return getText("IGUI_QSF_AlreadyDone")
-    elseif reason == "NeedPick" then
-        return getText("IGUI_QSF_NeedPick")
     end
+
+    if reason == "NeedSkill" then
+        return getText("IGUI_QSF_NeedSkill", QSF_Theme.perkName(detail), tostring(extra))
+    end
+
+    if COUNTED[reason] then return getText(COUNTED[reason], tostring(detail)) end
+    if PLAIN[reason] then return getText(PLAIN[reason]) end
+
     return nil
 end
 
