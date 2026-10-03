@@ -64,16 +64,6 @@ function QSF_Panel:bands()
     return tabY, listY, footerY, listW
 end
 
--- the footer button swaps between Accept, Turn In and Abandon, so it is sized for the
--- widest of them and the strip never reflows mid-use.
-local function QSF_labelWidth(button, ...)
-    local widest = 0
-    for _, key in ipairs({ ... }) do
-        widest = math.max(widest, getTextManager():MeasureStringX(button.font, getText(key)))
-    end
-    return 24 + widest
-end
-
 function QSF_Panel:createChildren()
     ISCollapsableWindow.createChildren(self)
 
@@ -121,14 +111,14 @@ function QSF_Panel:createChildren()
         QSF_Detail:new(PAD + listW + GAP, listY, self.width - listW - PAD * 2 - GAP, listHeight))
 
     self.action = QSF_Button:new(PAD, footerY + 2, 10, FOOTER_HEIGHT - 6, getText("IGUI_QSF_Accept"), self, QSF_Panel.onAction)
-    self.action:setWidth(QSF_labelWidth(self.action, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon"))
+    self.action:sizeToWidest(24, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon")
     QSF_Theme.attach(self, self.action)
 
     -- beside the action button, which keeps a fixed x and a fixed width, so its right edge
     -- is a stable anchor and the strip never reflows.
     self.teleport = QSF_Button:new(self.action:getRight() + 4, footerY + 2, 10, FOOTER_HEIGHT - 6,
         getText("IGUI_QSF_Teleport"), self, QSF_Panel.onTeleport)
-    self.teleport:setWidth(QSF_labelWidth(self.teleport, "IGUI_QSF_Teleport", "IGUI_QSF_TeleportCooldown"))
+    self.teleport:sizeToWidest(24, "IGUI_QSF_Teleport", "IGUI_QSF_TeleportCooldown")
     QSF_Theme.attach(self, self.teleport)
 
     self.reload = QSF_Button:new(self.width - PAD - 90, footerY + 2, 90, FOOTER_HEIGHT - 6,
