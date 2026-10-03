@@ -8,6 +8,7 @@ require "QSF_Theme"
 require "QSF_Rules"
 require "QSF_Location"
 require "QSF_ClientState"
+require "QSF_Text"
 
 QSF_Detail = ISPanel:derive("QSF_Detail")
 
@@ -64,8 +65,13 @@ function QSF_Detail:refreshBody(def)
     if not self.bodyDirty or not self.body then return end
     self.bodyDirty = false
 
-    self.body:setText(def and def.description or "")
+    -- filled the way the giver would say it, so it reads the same here as it did there.
+    local giver = def and def.giver and QSF_ClientState.npcs[def.giver] or nil
+    local text = QSF_Text.fill(def and def.description or "", QSF_Text.values(getPlayer(), giver, def))
+
+    self.body:setText(text)
     self.body:paginate()
+
 end
 
 function QSF_Detail:onResize()

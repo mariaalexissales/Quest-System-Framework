@@ -10,6 +10,7 @@ require "QSF_Choice"
 require "QSF_Theme"
 require "QSF_ClientState"
 require "QSF_Rules"
+require "QSF_Text"
 
 QSF = QSF or {}
 
@@ -114,8 +115,12 @@ function QSF_Dialogue:createChildren()
     self.revision = QSF_ClientState.revision
 end
 
-function QSF_Dialogue:say(text)
-    self.speech:setText(text or "")
+-- def is the quest being talked about, when there is one, for a line that names it.
+function QSF_Dialogue:say(text, def)
+    local npc = QSF_ClientState.npcs[self.npcKey]
+    text = QSF_Text.fill(text or "", QSF_Text.values(self.player, npc, def))
+
+    self.speech:setText(text)
     self.speech:paginate()
 end
 
@@ -209,9 +214,10 @@ function QSF_Dialogue:showQuest(def)
         text = getText("IGUI_QSF_Npc_Locked")
     end
 
-    self:say(text)
+    self:say(text, def)
 
     local y = self.speech:getY() + self.speech:getHeight() + GAP
+
     self.detail:setY(y)
     self.detail:setHeight(math.max(0, self:footerY() - GAP - y))
     self.detail:setKey(def.key)

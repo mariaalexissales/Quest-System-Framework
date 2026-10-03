@@ -3,6 +3,7 @@
 ----------
 
 require "QSF_Core"
+require "QSF_Text"
 
 QSF = QSF or {}
 QSF_Schema = QSF_Schema or {}
@@ -29,6 +30,15 @@ local function QSF_perkFromName(name)
     if not ok then return nil, true end
     if perk == PerkFactory.Perks.MAX then return nil, false end
     return perk, false
+end
+
+-- a placeholder nobody fills is shown as written, in front of every player, so whoever
+-- wrote it is told which one.
+local function QSF_checkPlaceholders(text, where, errors)
+    for _, name in ipairs(QSF_Text.unknown(text)) do
+        errors[#errors + 1] = where .. ": unknown placeholder {" .. name
+            .. "}, so it is shown as written (there is {player}, {npc} and {quest})"
+    end
 end
 
 -- outfits are listed per gender, and a name that only exists for the other one would
@@ -375,6 +385,7 @@ local function QSF_normaliseDialogue(raw, errors, key)
         local line = raw[field]
         if type(line) == "string" and line ~= "" then
             out[field] = line
+            QSF_checkPlaceholders(line, key, errors)
         elseif line ~= nil then
             errors[#errors + 1] = key .. ": dialogue." .. field .. " must be text"
         end
@@ -454,6 +465,8 @@ function QSF_Schema.normalise(raw, sourceFile)
         errors[#errors + 1] = key .. ": giver must be the key of an npc"
     end
 
+    QSF_checkPlaceholders(def.description, key, errors)
+
     -- handing it in is something that happens at the giver, and the sweep would pay it
     -- out wherever the player happened to be. first, and silently: unlike the two below
     -- this is not a mistake an author made, and it leaves them nothing to report.
@@ -516,6 +529,8 @@ function QSF_Schema.normaliseNpc(raw, sourceFile)
         errors[#errors + 1] = where .. ": facing must be one of N, NE, E, SE, S, SW, W, NW"
         facing = nil
     end
+
+    QSF_checkPlaceholders(raw.greeting, where, errors)
 
     return {
         key = key,
