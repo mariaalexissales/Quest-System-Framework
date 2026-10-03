@@ -9,7 +9,8 @@
       "outfit": "Farmer",
       "skin": 2,
       "facing": "S",
-      "greeting": "You look like you can swing a hammer. <LINE> I've got work if you want it."
+      "greeting": "You look like you can swing a hammer, {player}. <LINE> I've got work if you want it."
+
     }
   ],
 

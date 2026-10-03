@@ -254,6 +254,10 @@ the camera.
 
 `greeting` is what they say when the conversation opens. `<LINE>` and `<RGB:r,g,b>` work here too.
 
+Whatever an NPC says in the conversation also appears over its head, as plain text and once per
+conversation. Only the player talking sees it. A long line is cut short up there and is in full in
+the window.
+
 An NPC keeps the same clothes for good, across restarts and for every player. Changing its
 `outfit` or `female` re-rolls them. Moving it doesn't.
 
@@ -290,6 +294,28 @@ in the conversation greyed with the reason, unless it's `hidden`.
 A `giver` that names nobody gets a warning in the log, and the quest goes back to being an
 ordinary one in the log rather than being stuck where nobody can reach it.
 
+### Placeholders
+
+```json
+"greeting": "Morning, {player}. I'm {npc}.",
+"dialogue": { "offer": "{quest} won't do itself, {player}." }
+```
+
+Three names in curly braces are swapped for the real thing when a player reads the line:
+
+| You write | They see |
+|---|---|
+| `{player}` | their character's first name |
+| `{npc}` | the name of the NPC giving the quest |
+| `{quest}` | the quest's title |
+
+They work in a `greeting`, in the three `dialogue` lines and in a quest's `description`, so a
+description reads the same in the log as it does when the NPC says it.
+
+One with nothing to fill it is shown as written. That's `{quest}` in a greeting, or `{npc}` on a
+quest nobody gives. Anything else in braces, a typo like `{plyer}`, is shown as written too and
+named in the log.
+
 ### The marker
 
 A gold `!` over an NPC's head means they have something new for you. A gold `?` means something of
@@ -316,7 +342,16 @@ comes out of that file.
 
 To make a placed NPC hand out quests, put its key in a quest's `giver` and hit Reload.
 
+## What players are told
+
+A line appears over the player's head when they take a quest, when they finish one, and when
+something they asked for is refused. A refusal says why: too far from the giver, or the same
+reason the log greys a row with. A quest that completes itself says so too.
+
+Admins get one when a reload finishes.
+
 ## Watch out for
+
 
 Item types are full types. `Base.Nails`, not `Nails`. Anything the game doesn't recognise gets
 named in the log and dropped.
