@@ -58,40 +58,42 @@ description=[hr][/hr]
 description=[b][u]Requires [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3508537032]NeatUI Framework[/url][/u][/b] by Rocco & Afyrmo - subscribe to that as well or the panel won’t load, and it fails silently, so you’d get no window and no clue why.
 description=
 description=[hr][/hr]
-description=[h2]Support the Mod[/h2]
-description=If this increased the immersion in your server, or scratched everyone’s dailies itch, consider supporting me below~! Would love for more of y’all to watch me debug the code live, or just hang out :D
-description=[url=https://ko-fi.com/estralexe]☕ Ko-fi[/url]
-description=[url=https://www.twitch.tv/itsestral]🔴 Twitch[/url]
-description=
-description=[hr][/hr]
 description=[h2]Contributions[/h2]
 description=Ideas, bug reports, or a quest pack you want to share? Workshop comments or reach out directly. Credit goes here as it grows. I know it isn’t perfect, so all forms of input are welcome!
 description=
 description=[hr][/hr]
+description=[h1]Join Our Community![/h1]
+description=Have questions, suggestions, or need support? Join the official Discord server to stay updated on future releases and connect with other players!
+description=👉[url=https://discord.gg/heXQBtYUZb]Click here to join the Discord server[/url]
+description=[url=https://ko-fi.com/estralexe][img]https://i.imgur.com/S6apsIQ.gif[/img][/url]
+description=[url=https://www.twitch.tv/estralexe][img]https://i.imgur.com/FabN9Nh.gif[/img][/url]
+description=[hr][/hr]
 description=[h2]More From Estral[/h2]
 description=Check out my other mods while you’re at it:
 description=
-description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3791631305][img]https://images.steamusercontent.com/ugc/11843508093091308261/A79EED3FC204D4945A5842ACFCD964749B4F39EE/[/img][/url]
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3791631305][img]https://images.steamusercontent.com/ugc/10550109030485225665/A79EED3FC204D4945A5842ACFCD964749B4F39EE/[/img][/url]
 description=[b]Pinoy Pantry[/b]
 description=Sarap ng Pinas in Knox Country
 description=
-description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3795596462][img]https://images.steamusercontent.com/ugc/9301914339822316022/1FC53AA043BDEE17026A1E48AD903EAB3B9BEF2D/[/img][/url]
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3795596462][img]https://images.steamusercontent.com/ugc/17894628963991674168/9F2F1791EF6C7891106FABB38FE7D35F7BECF314/[/img][/url]
 description=[b]Player Leaderboard System[/b]
 description=Have your players fight for first place, or keep track of your best lives in solo
 description=
-description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3799346338]
-description=[img]https://images.steamusercontent.com/ugc/17612910413526835277/09B7859AB47474217FC3504E07DA9493103F542C/[/img][/url]
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3799346338][img]https://images.steamusercontent.com/ugc/16978772379826731736/09B7859AB47474217FC3504E07DA9493103F542C/[/img][/url]
 description=[b]Remove Vanilla Anything[/b]
 description=For those who are tired of seeing vanilla items in their heavily modded servers
 description=
-description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3746632343][img]https://images.steamusercontent.com/ugc/15570527383903825191/1C8C87277CF3CD38B6833608BD561C0E74CC97BD/[/img][/url]
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3746632343][img]https://images.steamusercontent.com/ugc/15813353898320562803/21D8A18963A880E6C1ED8AD9122946EFC6AC5A7B/[/img][/url]
 description=[b]Bundle Up! - A Packing Mod[/b]
 description=To organize all of your excessive stuff
 description=
-description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3800241753][img]https://images.steamusercontent.com/ugc/15205727337797343502/96977B7CB045B7166D5FCBB970FC886F2A322EE5/[/img]
-description=[/url]
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3800241753][img]https://images.steamusercontent.com/ugc/16485154806146051588/96977B7CB045B7166D5FCBB970FC886F2A322EE5/[/img][/url]
 description=[b]Dead Court Deck[/b]
 description=For your [strike]scalper[/strike] collectable needs!
+description=
+description=[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809376465][img]https://images.steamusercontent.com/ugc/14562058275516331001/A6E0C864A8C7DFCDAA20888EA3F10CACEE49586B/[/img][/url]
+description=[b]LAPLACE//DAEMON[/b]
+description=Every blade you forge rolls a rarity, and a fortune
 description=
 description=[hr][/hr]
 tags=Build 42;Framework;Misc;Multiplayer;QoL;WIP
