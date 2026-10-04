@@ -373,10 +373,13 @@ on it too. Clearing zombies with an admin command takes the NPCs with them, and 
 few seconds. Another mod's armed survivors will shoot at one, and waste the bullets. Hitting one
 never counts toward a kill objective.
 
-A hit can still knock an NPC's hat or glasses off, a shove included. They're put back on within a
-moment and the one left on the ground is taken away, so there's nothing to collect by shoving. For
-those few seconds anything of the same kind lying within two tiles could be taken instead, so
-don't leave your own glasses at an NPC's feet.
+A player can't land anything on an NPC. A swing, a shove or a shot goes through it as if nobody
+were standing there. A car still knocks it over, and it's stood back on its tile a couple of
+seconds later.
+
+If something that isn't a player does knock its hat or glasses off, they're put back on and the
+one left on the ground is taken away. For those few seconds anything of the same kind lying within
+two tiles could be taken instead, so don't leave your own glasses at an NPC's feet.
 
 An NPC's tile has to be loaded for it to exist, so the first player into an area sees it appear a
 moment after they arrive. Chunks load well ahead of where anyone can see, so in practice it's there
