@@ -22,11 +22,6 @@ QSF.NPC_REACH = 3
 -- cannot disagree about who it is.
 QSF.NPC_LEASH = 3
 
--- god mode is what keeps an npc alive, and the game only honours it on a server or with
--- debug mode on. in an ordinary singleplayer game it is refused outright. so an npc is
--- also kept at more health than any one blow takes, topped up before the next can land.
-QSF.NPC_HEALTH = 1000
-
 QSF.Config = QSF.Config or {
     -- flip this if a dedicated server logs a nil attacker on the kill path. the client
     -- reports its own kills instead, which is clamped but cheaper to cheat.
