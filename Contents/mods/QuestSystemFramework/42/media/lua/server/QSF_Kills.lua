@@ -45,6 +45,9 @@ local function QSF_onZombieDead(zombie)
     if QSF.Config.clientKillReporting then return end
     if not zombie then return end
 
+    -- an npc is a zombie underneath. looked up at call time: QSF_Npcs loads after this.
+    if QSF_Npcs and QSF_Npcs.npcOf(zombie) then return end
+
     -- OnZombieDead passes the zombie and nothing else, so the killer comes off the zombie.
     -- nil for fire and falls, and getUsername is nil for anything that is not a player.
     local attacker = zombie:getAttackedBy()

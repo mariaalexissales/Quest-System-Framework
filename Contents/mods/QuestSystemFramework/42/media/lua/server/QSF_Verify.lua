@@ -3,6 +3,7 @@
 ----------
 
 require "QSF_Core"
+require "QSF_Net"
 require "QSF_Rules"
 require "QSF_State"
 require "QSF_Rewards"
@@ -74,6 +75,11 @@ function QSF_Verify.claim(player, key, pick)
         return false, "Changed"
     end
 
+    -- here rather than in the command, so there is no way to be paid that skips it.
+    if not QSF_Rules.atGiver(def, QSF_Defs.npcs, player) then
+        return false, "TooFar"
+    end
+
     -- before anything is taken, so a stale or crafted pick cannot cost the player their
     -- items and leave the quest unpaid.
     if def.rewards and def.rewards.choice then
@@ -94,8 +100,12 @@ function QSF_Verify.claim(player, key, pick)
     QSF_State.complete(username, key)
     QSF_State.push(username, key)
 
+    -- from here rather than from the command, so the sweep below says so as well.
+    QSF_Net.toClient(player, "toast", { kind = "completed", key = key })
+
     QSF.log(username .. " completed " .. key)
     return true
+
 end
 
 -- covers a client that crashed or never had the mod, and runs the same check claim does.

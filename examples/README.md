@@ -103,6 +103,11 @@ Perk names are the engine's, not the ones on the character sheet. These four cat
 | First Aid | `Doctor` |
 | Lightfooted | `Lightfoot` |
 
+That's only for the file. Players are shown the character sheet's name, so `"Woodwork": 3` reads
+as "Requires Carpentry 3" and an XP reward as "Carpentry +500 XP".
+
+A name the game doesn't know gets named in the log and dropped, the same as an item.
+
 There's no character level in this game, so `kills` and `daysSurvived` are the closest you'll get.
 
 ## Locations
@@ -202,7 +207,154 @@ the quest pays out like it never had one.
 Past eight options the log warns you. They all still load, but the picker grows to fit rather than
 scrolling, so a long enough list will run off the screen.
 
+## NPCs
+
+```json
+{
+  "npcs": [
+    {
+      "key": "old_joe",
+      "name": "Old Joe",
+      "x": 10629, "y": 9312, "z": 0,
+      "outfit": "Farmer",
+      "greeting": "You look like you can swing a hammer."
+    }
+  ]
+}
+```
+
+An NPC stands on its tile and hands out quests. Players right-click on or beside it and pick
+Talk. It can't be hurt, zombies walk straight past it, and it doesn't move. If something does shift
+it, a car for instance, it's back on its tile a couple of seconds later.
+
+They go in the same folder as quests, in any `.json`, under `npcs`. A file can hold both lists or
+just one. `npcs.json` in this folder is one to copy.
+
+`key`, `x` and `y` are the only things you have to write.
+
+`key` is what a quest points at, so the same rules as a quest key. Renaming one cuts its quests
+loose.
+
+`name` is what players see. Leave it out and they see the key.
+
+`z` is the floor, default 0.
+
+`outfit` is a vanilla zombie outfit, default `Generic01`. A few that work for either sex: `Farmer`,
+`Police`, `Doctor`, `Fireman`, `Ranger`, `Camper`, `Trader`, `Evacuee`, `Teacher`, `Chef`,
+`Biker`, `Classy`, `Young`, `Retiree`. The debug menu's horde tool lists every one of them.
+
+`female` is true or false, default false. Some outfits only exist for one sex: `Priest`,
+`Mechanic` and `Hunter` are men's, `Generic_Skirt` and `OfficeWorkerSkirt` are women's. Ask for
+one the wrong way round and the log tells you and the NPC gets `Generic01` instead.
+
+`skin` is 1 to 5, light to dark, default 1.
+
+`facing` is a compass point, `N` `NE` `E` `SE` `S` `SW` `W` `NW`. Default `SE`, which is toward
+the camera.
+
+`greeting` is what they say when the conversation opens. `<LINE>` and `<RGB:r,g,b>` work here too.
+
+Whatever an NPC says in the conversation also appears over its head, as plain text and once per
+conversation. Only the player talking sees it. A long line is cut short up there and is in full in
+the window.
+
+An NPC keeps the same clothes for good, across restarts and for every player. Changing its
+`outfit` or `female` re-rolls them. Moving it doesn't.
+
+### Giving quests
+
+```json
+{
+  "key": "intro_supplies",
+  "title": "Something To Build With",
+  "giver": "old_joe",
+  "dialogue": {
+    "offer": "Bring me nails and planks and we'll talk about the work that pays.",
+    "progress": "Still short. Nails and planks.",
+    "complete": "That'll do. Here."
+  },
+  "objectives": [ { "type": "collect", "item": "Base.Nails", "count": 10 } ]
+}
+```
+
+Give a quest a `giver` and it belongs to that NPC. It leaves the Available tab, and the only way to
+take it or hand it in is to stand within three tiles of the NPC, on the same floor, and talk. The
+server checks that itself. Once taken it's in the log under In Progress like any other, and it can
+be abandoned from there.
+
+`autoComplete` is off for these whatever you write, since handing it in is the point.
+
+One NPC can give as many quests as you like. The conversation lists them all and scrolls when
+there are more than fit.
+
+`dialogue` is what the NPC says about that quest. `offer` before it's taken, `progress` while it's
+underway, `complete` when it's ready to hand in. All three are optional. With no `offer` they say
+the quest's `description`, and the other two have stock lines.
+
+Everything else about the quest works as it did. Prereqs still lock it, and a locked quest shows
+in the conversation greyed with the reason, unless it's `hidden`.
+
+A `giver` that names nobody gets a warning in the log, and the quest goes back to being an
+ordinary one in the log rather than being stuck where nobody can reach it.
+
+### Placeholders
+
+```json
+"greeting": "Morning, {player}. I'm {npc}.",
+"dialogue": { "offer": "{quest} won't do itself, {player}." }
+```
+
+Three names in curly braces are swapped for the real thing when a player reads the line:
+
+| You write | They see |
+|---|---|
+| `{player}` | their character's first name |
+| `{npc}` | the name of the NPC giving the quest |
+| `{quest}` | the quest's title |
+
+They work in a `greeting`, in the three `dialogue` lines and in a quest's `description`, so a
+description reads the same in the log as it does when the NPC says it.
+
+One with nothing to fill it is shown as written. That's `{quest}` in a greeting, or `{npc}` on a
+quest nobody gives. Anything else in braces, a typo like `{plyer}`, is shown as written too and
+named in the log.
+
+### The marker
+
+A gold `!` over an NPC's head means they have something new for you. A gold `?` means something of
+theirs is ready to hand in. A grey `?` means you're part-way through one. Nothing means nothing.
+
+Each player sees their own.
+
+### Placing one in game
+
+Right-click a tile and pick Place quest NPC here. Fill in a name, pick an outfit, confirm. They
+appear on the spot. Leave the key empty and it's made from the name, so "Old Joe" becomes
+`old_joe`.
+
+On a server that's admins only. In singleplayer it needs debug mode on, so it isn't sitting in
+everybody's right-click menu.
+
+These are written to `npcs_placed.json` in the quest folder. That file belongs to the game: it
+rewrites the whole thing every time one is placed or removed. You can edit it by hand and the
+edits are kept, but your own files are never touched, so anything you want comments in belongs in
+one of those.
+
+An NPC placed this way can be removed by right-clicking it. One you wrote into a file yourself
+comes out of that file.
+
+To make a placed NPC hand out quests, put its key in a quest's `giver` and hit Reload.
+
+## What players are told
+
+A line appears over the player's head when they take a quest, when they finish one, and when
+something they asked for is refused. A refusal says why: too far from the giver, or the same
+reason the log greys a row with. A quest that completes itself says so too.
+
+Admins get one when a reload finishes.
+
 ## Watch out for
+
 
 Item types are full types. `Base.Nails`, not `Nails`. Anything the game doesn't recognise gets
 named in the log and dropped.
@@ -216,15 +368,22 @@ quests permanently unavailable and nothing would ever tell you why.
 
 Kills count where the zombie died, not where the player was standing.
 
-A file with a syntax error in it logs a warning naming the file and the line, and then, because of
-how the game's Lua runtime reports errors, a long Java stack trace as well. It looks like a crash.
-It isn't one. That file is dropped, every other file still loads, and the server carries on. If you
-want to see it for yourself, drop a deliberately broken `.json` in the folder and hit Reload:
+An NPC is a zombie underneath, dressed up and held still. Anything that acts on every zombie acts
+on it too. Clearing zombies with an admin command takes the NPCs with them, and they're back in a
+few seconds. Another mod's armed survivors will shoot at one, and waste the bullets. Hitting one
+never counts toward a kill objective.
 
-```json
-{ "quests": [ { "key": "oops"
+An NPC's tile has to be loaded for it to exist, so the first player into an area sees it appear a
+moment after they arrive. Chunks load well ahead of where anyone can see, so in practice it's there
+by the time they get to it.
+
+A file with a syntax error in it costs you that file and one line in the log, naming the file and
+the line the mistake is on:
+
+```
+[QSF] WARN: QuestFramework/quests.json: line 14: expected a comma or a closing brace in object
 ```
 
-You'll get the warning, the trace, and then the usual summary line with that file counted under
-rejected. If you're running with the debugger's Break On Error turned on it will stop there too,
-which is the debugger doing its job rather than a sign anything is wrong.
+Every other file still loads, and the summary line counts the bad one under rejected. Fix it and
+hit Reload. The warning comes back on every reload until you do, and placing or removing an NPC in
+game is a reload.

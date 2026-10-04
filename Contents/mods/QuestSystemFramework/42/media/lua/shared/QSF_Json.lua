@@ -28,6 +28,32 @@ local function QSF_utf8(code)
     return "?"
 end
 
+-- the next character from i on that is neither whitespace nor inside a comment. only ever
+-- called from outside a string, so a slash here can only be starting a comment.
+local function QSF_nextMeaningful(text, i)
+    local n = #text
+
+    while i <= n do
+        local c = text:sub(i, i)
+
+        if c:find("%s") then
+            i = i + 1
+        elseif c == "/" and text:sub(i + 1, i + 1) == "/" then
+            local stop = text:find("\n", i, true)
+            if not stop then return nil end
+            i = stop + 1
+        elseif c == "/" and text:sub(i + 1, i + 1) == "*" then
+            local stop = text:find("*/", i + 2, true)
+            if not stop then return nil end
+            i = stop + 2
+        else
+            return c
+        end
+    end
+
+    return nil
+end
+
 -- a character scan, not a gsub: a naive comment strip eats the slashes in any url in a
 -- description, and a naive comma strip eats commas in prose. only the in-string state
 -- tells code from content.
@@ -68,8 +94,8 @@ local function QSF_prepass(text)
             i = stop + 2
         elseif c == "," then
             -- a comma is trailing when the next meaningful character closes the container.
-            local nextAt = text:find("[^%s]", i + 1)
-            local nextChar = nextAt and text:sub(nextAt, nextAt) or nil
+            -- a comment is not meaningful: "x": 1, // the last one  is how people write it.
+            local nextChar = QSF_nextMeaningful(text, i + 1)
             if nextChar == "}" or nextChar == "]" then
                 i = i + 1
             else
@@ -98,8 +124,17 @@ function Parser:lineAt(pos)
     return line
 end
 
+-- nothing in the parser raises. the game logs every error() with a full java stack trace,
+-- caught or not, and stops on it under Break On Error, so one mistyped quest file used to
+-- look like a crash. a failure is written down instead and every caller backs out.
+--
+-- null is a legal value and decodes to nil, so nil cannot be what says a parse failed:
+-- self.err is. the first one is kept, since that is the one at the mistake.
 function Parser:fail(message)
-    error("line " .. self:lineAt(self.pos) .. ": " .. message, 0)
+    if not self.err then
+        self.err = "line " .. self:lineAt(self.pos) .. ": " .. message
+    end
+    return nil
 end
 
 function Parser:skip()
@@ -116,7 +151,7 @@ function Parser:parseString()
     local out = {}
 
     while true do
-        if self.pos > self.len then self:fail("unterminated string") end
+        if self.pos > self.len then return self:fail("unterminated string") end
         local c = self.text:sub(self.pos, self.pos)
 
         if c == '"' then
@@ -127,14 +162,14 @@ function Parser:parseString()
             if esc == "u" then
                 local hex = self.text:sub(self.pos + 2, self.pos + 5)
                 local code = tonumber(hex, 16)
-                if not code then self:fail("bad unicode escape") end
+                if not code then return self:fail("bad unicode escape") end
                 out[#out + 1] = QSF_utf8(code)
                 self.pos = self.pos + 6
             elseif ESCAPES[esc] then
                 out[#out + 1] = ESCAPES[esc]
                 self.pos = self.pos + 2
             else
-                self:fail("unknown escape character")
+                return self:fail("unknown escape character")
             end
         else
             out[#out + 1] = c
@@ -146,7 +181,7 @@ end
 function Parser:parseNumber()
     local span = self.text:match("^%-?%d+%.?%d*[eE]?[%+%-]?%d*", self.pos)
     local value = span and tonumber(span)
-    if not value then self:fail("bad number") end
+    if not value then return self:fail("bad number") end
     self.pos = self.pos + #span
     return value
 end
@@ -160,6 +195,8 @@ function Parser:parseArray()
 
     while true do
         local value = self:parseValue()
+        if self.err then return nil end
+
         -- compacting beats a hole that breaks every ipairs and # downstream.
         if value ~= nil then out[#out + 1] = value end
 
@@ -171,7 +208,7 @@ function Parser:parseArray()
             self.pos = self.pos + 1
             return out
         else
-            self:fail("expected a comma or a closing bracket in array")
+            return self:fail("expected a comma or a closing bracket in array")
         end
     end
 end
@@ -185,15 +222,18 @@ function Parser:parseObject()
 
     while true do
         self:skip()
-        if self:peek() ~= '"' then self:fail("expected a quoted key") end
+        if self:peek() ~= '"' then return self:fail("expected a quoted key") end
         local key = self:parseString()
+        if self.err then return nil end
 
         self:skip()
-        if self:peek() ~= ":" then self:fail("expected a colon after key " .. key) end
+        if self:peek() ~= ":" then return self:fail("expected a colon after key " .. key) end
         self.pos = self.pos + 1
 
         -- null decodes to nil, so the key is absent and the default applies.
-        out[key] = self:parseValue()
+        local value = self:parseValue()
+        if self.err then return nil end
+        out[key] = value
 
         self:skip()
         local c = self:peek()
@@ -203,7 +243,7 @@ function Parser:parseObject()
             self.pos = self.pos + 1
             return out
         else
-            self:fail("expected a comma or a closing brace in object")
+            return self:fail("expected a comma or a closing brace in object")
         end
     end
 end
@@ -212,7 +252,7 @@ function Parser:parseValue()
     self:skip()
     local c = self:peek()
 
-    if c == "" then self:fail("unexpected end of file") end
+    if c == "" then return self:fail("unexpected end of file") end
     if c == "{" then return self:parseObject() end
     if c == "[" then return self:parseArray() end
     if c == '"' then return self:parseString() end
@@ -231,7 +271,7 @@ function Parser:parseValue()
     end
     if c:match("[%-%d]") then return self:parseNumber() end
 
-    self:fail("unexpected character " .. c)
+    return self:fail("unexpected character " .. c)
 end
 
 -- returns the value, or nil plus a message. never raises.
@@ -242,8 +282,12 @@ function QSF_Json.decode(text)
 
     local parser = Parser.new(QSF_prepass(text))
 
+    -- a mistake in the file comes back through parser.err and never reaches this pcall.
+    -- it is only here for a mistake in the parser, which should cost a file, not a server.
     local ok, result = pcall(function()
         local value = parser:parseValue()
+        if parser.err then return nil end
+
         parser:skip()
         if parser.pos <= parser.len then
             parser:fail("trailing content after the top-level value")
@@ -252,6 +296,104 @@ function QSF_Json.decode(text)
     end)
 
     if not ok then return nil, tostring(result) end
+    if parser.err then return nil, parser.err end
     if result == nil then return nil, "top-level value is null" end
     return result
+end
+
+local ESCAPES_OUT = {
+    ['"'] = '\\"', ["\\"] = "\\\\", ["\b"] = "\\b",
+    ["\f"] = "\\f", ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t",
+}
+
+local HEX = "0123456789abcdef"
+
+-- only what json requires is escaped. the game reads and writes these files as utf-8, so
+-- an accented name goes out and comes back as itself.
+local function QSF_quote(text)
+    local out = {}
+
+    for i = 1, #text do
+        local c = text:sub(i, i)
+        local code = string.byte(c)
+
+        if ESCAPES_OUT[c] then
+            out[#out + 1] = ESCAPES_OUT[c]
+        elseif code < 32 then
+            local high, low = math.floor(code / 16) + 1, (code % 16) + 1
+            out[#out + 1] = "\\u00" .. HEX:sub(high, high) .. HEX:sub(low, low)
+        else
+            out[#out + 1] = c
+        end
+    end
+
+    return '"' .. table.concat(out) .. '"'
+end
+
+local function QSF_write(value, depth, rank, out)
+    local kind = type(value)
+
+    if kind == "string" then
+        out[#out + 1] = QSF_quote(value)
+    elseif kind == "number" then
+        -- every number is a double here, and a tile coordinate written as 10629.0 reads
+        -- like somebody made a mistake.
+        if value == math.floor(value) then
+            out[#out + 1] = string.format("%d", value)
+        else
+            out[#out + 1] = tostring(value)
+        end
+    elseif kind == "boolean" then
+        out[#out + 1] = value and "true" or "false"
+    elseif kind ~= "table" then
+        out[#out + 1] = "null"
+    elseif table.isempty(value) then
+        -- lua cannot tell an empty list from an empty object. everything this writes
+        -- that can be empty is a list.
+        out[#out + 1] = "[]"
+    else
+        local inner = string.rep("  ", depth + 1)
+        local outer = string.rep("  ", depth)
+
+        if #value > 0 then
+            out[#out + 1] = "[\n"
+            for i, item in ipairs(value) do
+                out[#out + 1] = inner
+                QSF_write(item, depth + 1, rank, out)
+                out[#out + 1] = i < #value and ",\n" or "\n"
+            end
+            out[#out + 1] = outer .. "]"
+        else
+            -- pairs() has no order, and a file that reshuffles itself on every write
+            -- cannot be diffed or read.
+            local keys = {}
+            for key in pairs(value) do keys[#keys + 1] = tostring(key) end
+
+            table.sort(keys, function(a, b)
+                local ra, rb = rank[a], rank[b]
+                if ra and rb then return ra < rb end
+                if ra or rb then return ra ~= nil end
+                return a < b
+            end)
+
+            out[#out + 1] = "{\n"
+            for i, key in ipairs(keys) do
+                out[#out + 1] = inner .. QSF_quote(key) .. ": "
+                QSF_write(value[key], depth + 1, rank, out)
+                out[#out + 1] = i < #keys and ",\n" or "\n"
+            end
+            out[#out + 1] = outer .. "}"
+        end
+    end
+end
+
+-- written to be opened and edited by hand: indented, one key to a line. order names the
+-- keys to put first, in that order; anything else follows alphabetically.
+function QSF_Json.encode(value, order)
+    local rank = {}
+    for index, key in ipairs(order or {}) do rank[key] = index end
+
+    local out = {}
+    QSF_write(value, 0, rank, out)
+    return table.concat(out)
 end

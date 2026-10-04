@@ -1,0 +1,60 @@
+{
+  // swap the coordinates for a tile in your own world. the debug menu shows them, and so
+  // does the form you get from right-clicking a tile and picking Place quest NPC here.
+  "npcs": [
+    {
+      "key": "old_joe",
+      "name": "Old Joe",
+      "x": 10629, "y": 9312, "z": 0,
+      "outfit": "Farmer",
+      "skin": 2,
+      "facing": "S",
+      "greeting": "You look like you can swing a hammer, {player}. <LINE> I've got work if you want it."
+
+    }
+  ],
+
+  "quests": [
+    {
+      "key": "joe_supplies",
+      "title": "Joe's Fence",
+      "description": "Old Joe wants his fence back up before the next lot wander through.",
+      "giver": "old_joe",
+      "dialogue": {
+        "offer": "Fence came down in the night. <LINE> Bring me nails and planks and I'll make it worth your while.",
+        "progress": "Still short. Nails and planks, same as I said.",
+        "complete": "That'll do nicely. Here, take your pick."
+      },
+      "objectives": [
+        { "type": "collect", "item": "Base.Nails", "count": 10 },
+        { "type": "collect", "item": "Base.Plank", "count": 4 }
+      ],
+      "rewards": {
+        "xp": { "Woodwork": 100 },
+        "choice": {
+          "label": "Take one",
+          "options": [
+            { "item": "Base.Hammer", "count": 1 },
+            { "item": "Base.Saw", "count": 1 }
+          ]
+        }
+      }
+    },
+
+    {
+      "key": "joe_road",
+      "title": "Clear The Road",
+      "giver": "old_joe",
+      "prereqs": { "quests": ["joe_supplies"] },
+      "dialogue": {
+        "offer": "Fence is up. Road's still crawling. <LINE> Thin them out and come back."
+      },
+      "objectives": [
+        { "type": "kill", "count": 15 }
+      ],
+      "rewards": {
+        "items": [ { "item": "Base.Axe", "count": 1 } ]
+      }
+    }
+  ]
+}

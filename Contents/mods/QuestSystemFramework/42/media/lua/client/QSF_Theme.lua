@@ -56,6 +56,18 @@ function QSF_Theme.itemName(fullType)
     return fullType
 end
 
+-- a quest file names a perk the way the engine does, Woodwork, and the character sheet calls
+-- that one Carpentry. FromString answers a name it does not know with the MAX placeholder
+-- rather than nil, and that is shown as it was written, the same as an item is.
+function QSF_Theme.perkName(name)
+    local perk = PerkFactory.Perks.FromString(name)
+    if not perk or perk == PerkFactory.Perks.MAX then return name end
+
+    local display = PerkFactory.getPerkName(perk)
+    if display and display ~= "" then return display end
+    return name
+end
+
 -- NeatUI fails silently when it has not loaded, so nothing calls truncateText directly.
 function QSF_Theme.truncate(text, maxWidth, font)
     if NeatTool and type(NeatTool.truncateText) == "function" then

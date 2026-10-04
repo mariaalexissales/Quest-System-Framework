@@ -21,6 +21,52 @@ end
 
 QSF_Rules.perkLevel = QSF_perkLevel
 
+-- an npc is a zombie underneath, and this is the one thing about a zombie that reaches
+-- every client and survives a save. bit 15 only says the hat has come off, and would
+-- otherwise make it somebody else the moment it did.
+function QSF_Rules.npcId(zombie)
+    local id = zombie:getPersistentOutfitID()
+    if id % 65536 >= 32768 then id = id - 32768 end
+    return id
+end
+
+-- the id is rolled per outfit, so any other zombie in the same clothes can turn up with
+-- the same one. both sides only ever accept it this close to where the npc stands.
+function QSF_Rules.isNear(x, y, z, npc, tiles)
+    if not npc or not x or not y then return false end
+    if math.floor(z or 0) ~= npc.z then return false end
+
+    -- measured from the middle of the tile, which is where it is stood.
+    local dx = x - (npc.x + 0.5)
+    local dy = y - (npc.y + 0.5)
+    return (dx * dx + dy * dy) <= (tiles * tiles)
+end
+
+function QSF_Rules.inReach(player, npc)
+    if not player or not npc then return false end
+    return QSF_Rules.isNear(player:getX(), player:getY(), player:getZ(), npc, QSF.NPC_REACH)
+end
+
+-- the same split as canAccept: the dialogue only offers a quest with this and the server
+-- only takes or pays one with it. npcs is the table either side keeps, by key. a quest
+-- with no giver is dealt with from the log, wherever the player is.
+function QSF_Rules.atGiver(def, npcs, player)
+    if not def or not def.giver then return true end
+    return QSF_Rules.inReach(player, npcs and npcs[def.giver])
+end
+
+-- what one npc hands out, in the order the log would list it. ordered is the sorted quest
+-- list either side already keeps.
+function QSF_Rules.npcQuests(npcKey, ordered)
+    local out = {}
+
+    for _, def in ipairs(ordered or {}) do
+        if def.giver == npcKey then out[#out + 1] = def end
+    end
+
+    return out
+end
+
 -- the client greys a row with this and the server authorises with it, so a greyed row and
 -- a refused button cannot disagree. reason is a translation key suffix.
 function QSF_Rules.canAccept(def, rec, player, state)
@@ -60,7 +106,8 @@ function QSF_Rules.canAccept(def, rec, player, state)
     if player then
         for perkName, level in pairs(prereqs.skills or {}) do
             if QSF_perkLevel(player, perkName) < level then
-                return false, "NeedSkill", perkName .. " " .. level
+                -- apart, so the client can swap in the name the character sheet uses.
+                return false, "NeedSkill", perkName, level
             end
         end
 

@@ -8,6 +8,7 @@ require "QSF_Theme"
 require "QSF_Rules"
 require "QSF_Location"
 require "QSF_ClientState"
+require "QSF_Text"
 
 QSF_Detail = ISPanel:derive("QSF_Detail")
 
@@ -24,6 +25,12 @@ function QSF_Detail:new(x, y, width, height)
     self.__index = self
 
     o.key = nil
+
+    -- the dialogue turns both off: the npc is saying the description itself, and the
+    -- player is already standing in front of who to go back to.
+    o.showBody = true
+    o.showGiver = true
+
     o.backgroundColor = { r = 0, g = 0, b = 0, a = 0 }
     o.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     o.moveWithMouse = false
@@ -58,8 +65,13 @@ function QSF_Detail:refreshBody(def)
     if not self.bodyDirty or not self.body then return end
     self.bodyDirty = false
 
-    self.body:setText(def and def.description or "")
+    -- filled the way the giver would say it, so it reads the same here as it did there.
+    local giver = def and def.giver and QSF_ClientState.npcs[def.giver] or nil
+    local text = QSF_Text.fill(def and def.description or "", QSF_Text.values(getPlayer(), giver, def))
+
+    self.body:setText(text)
     self.body:paginate()
+
 end
 
 function QSF_Detail:onResize()
@@ -70,12 +82,13 @@ function QSF_Detail:onResize()
     end
 end
 
-local function QSF_reasonText(reason, detail)
+-- extra is the level, and only a skill has one.
+local function QSF_reasonText(reason, detail, extra)
     if reason == "NeedQuest" then
         local def = QSF_ClientState.defs[detail]
         return getText("IGUI_QSF_NeedQuest", def and def.title or tostring(detail))
     elseif reason == "NeedSkill" then
-        return getText("IGUI_QSF_NeedSkill", tostring(detail))
+        return getText("IGUI_QSF_NeedSkill", QSF_Theme.perkName(detail), tostring(extra))
     elseif reason == "NeedKills" then
         return getText("IGUI_QSF_NeedKills", tostring(detail))
     elseif reason == "NeedDays" then
@@ -106,7 +119,7 @@ function QSF_Detail:render()
         return
     end
 
-    if self.body then self.body:setVisible(true) end
+    if self.body then self.body:setVisible(self.showBody) end
 
     local rec = QSF_ClientState.record(self.key)
     local counts = QSF_ClientState.counts()
@@ -122,10 +135,20 @@ function QSF_Detail:render()
         y = y + self.lineHeight
     end
 
+    -- a giver quest cannot be taken or handed in from here, so say where it can.
+    local giver = self.showGiver and def.giver and QSF_ClientState.npcs[def.giver] or nil
+    if giver then
+        local active = rec and rec.status == "active"
+        local text = getText(active and "IGUI_QSF_GiverReturn" or "IGUI_QSF_GiverOffer", giver.name)
+        self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2, UIFont.Small), PAD, y,
+            QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
+        y = y + self.lineHeight
+    end
+
     y = y + GAP
 
     self:refreshBody(def)
-    if self.body then
+    if self.body and self.showBody then
         self.body:setY(y)
         y = y + self.body:getHeight() + GAP
     end
@@ -178,7 +201,8 @@ function QSF_Detail:render()
         end
 
         for perkName, amount in pairs(def.rewards.xp or {}) do
-            self:drawText(perkName .. " +" .. amount .. " XP", PAD + ICON + GAP, y,
+            local text = getText("IGUI_QSF_RewardXp", QSF_Theme.perkName(perkName), tostring(amount))
+            self:drawText(text, PAD + ICON + GAP, y,
                 QSF_Theme.COL_COUNT.r, QSF_Theme.COL_COUNT.g, QSF_Theme.COL_COUNT.b, 1, UIFont.Small)
             y = y + self.lineHeight
         end
@@ -204,9 +228,9 @@ function QSF_Detail:render()
     end
 
     -- a player cannot act on "no" alone.
-    local ok, reason, detail = QSF_Rules.canAccept(def, rec, getPlayer(), QSF_ClientState.state)
+    local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, getPlayer(), QSF_ClientState.state)
     if not ok and reason ~= "AlreadyActive" then
-        local text = QSF_reasonText(reason, detail)
+        local text = QSF_reasonText(reason, detail, extra)
         if text then
             y = y + GAP
             self:drawText(getText("IGUI_QSF_Locked"), PAD, y,
@@ -218,8 +242,12 @@ function QSF_Detail:render()
             end
             self:drawText(QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
                 PAD + ICON + GAP, y, QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+            y = y + self.lineHeight
         end
     end
+
+    -- how far down it got, for a window that has to make room for all of it.
+    self.contentHeight = y + PAD
 end
 
 function QSF_Detail:drawRewardLine(entry, y)

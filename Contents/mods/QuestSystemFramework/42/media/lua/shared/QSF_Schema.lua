@@ -3,6 +3,7 @@
 ----------
 
 require "QSF_Core"
+require "QSF_Text"
 
 QSF = QSF or {}
 QSF_Schema = QSF_Schema or {}
@@ -10,6 +11,9 @@ QSF_Schema = QSF_Schema or {}
 local VALID_KEY = "^[%w_%.%-]+$"
 local MAX_COLLECT_TYPES = 16
 local MAX_CHOICE_OPTIONS = 8
+
+local FALLBACK_OUTFIT = "Generic01"
+local FACINGS = { N = true, NE = true, E = true, SE = true, S = true, SW = true, W = true, NW = true }
 
 -- a lookup that throws means the engine is not ready yet, which is "cannot say" rather
 -- than "invalid" - otherwise an early load would silently delete every objective.
@@ -19,10 +23,30 @@ local function QSF_itemExists(fullType)
     return item ~= nil
 end
 
+-- FromString never answers nil. a name it does not know comes back as the MAX placeholder,
+-- which no character has a level in, so a quest asking for it would be locked for good.
 local function QSF_perkFromName(name)
     local ok, perk = pcall(function() return PerkFactory.Perks.FromString(name) end)
     if not ok then return nil, true end
+    if perk == PerkFactory.Perks.MAX then return nil, false end
     return perk, false
+end
+
+-- a placeholder nobody fills is shown as written, in front of every player, so whoever
+-- wrote it is told which one.
+local function QSF_checkPlaceholders(text, where, errors)
+    for _, name in ipairs(QSF_Text.unknown(text)) do
+        errors[#errors + 1] = where .. ": unknown placeholder {" .. name
+            .. "}, so it is shown as written (there is {player}, {npc} and {quest})"
+    end
+end
+
+-- outfits are listed per gender, and a name that only exists for the other one would
+-- spawn a zombie in nothing. an empty or throwing list is "cannot say", as above.
+local function QSF_outfitExists(name, female)
+    local ok, list = pcall(function() return getAllOutfits(female) end)
+    if not ok or not list or list:size() == 0 then return true end
+    return list:contains(name)
 end
 
 -- djb2 over the objective descriptors, to notice a reorder or retune that would leave
@@ -346,6 +370,30 @@ local function QSF_normaliseRepeatable(raw, errors, key)
     }
 end
 
+-- what the giver says. every line is optional and the client has a stock one for each,
+-- so a quest can name a giver and write nothing else.
+local function QSF_normaliseDialogue(raw, errors, key)
+    if raw == nil then return nil end
+
+    if type(raw) ~= "table" then
+        errors[#errors + 1] = key .. ": dialogue must be an object of offer, progress and complete"
+        return nil
+    end
+
+    local out = {}
+    for _, field in ipairs({ "offer", "progress", "complete" }) do
+        local line = raw[field]
+        if type(line) == "string" and line ~= "" then
+            out[field] = line
+            QSF_checkPlaceholders(line, key, errors)
+        elseif line ~= nil then
+            errors[#errors + 1] = key .. ": dialogue." .. field .. " must be text"
+        end
+    end
+
+    return out
+end
+
 -- returns def, errors. def is nil when the quest could not be salvaged at all.
 function QSF_Schema.normalise(raw, sourceFile)
     local errors = {}
@@ -408,8 +456,21 @@ function QSF_Schema.normalise(raw, sourceFile)
         rewards = QSF_normaliseRewards(raw.rewards, errors, key),
         repeatable = QSF_normaliseRepeatable(raw.repeatable, errors, key),
         autoComplete = raw.autoComplete ~= false,
+        giver = (type(raw.giver) == "string" and raw.giver ~= "") and raw.giver or nil,
+        dialogue = QSF_normaliseDialogue(raw.dialogue, errors, key),
         source = sourceFile,
     }
+
+    if raw.giver ~= nil and not def.giver then
+        errors[#errors + 1] = key .. ": giver must be the key of an npc"
+    end
+
+    QSF_checkPlaceholders(def.description, key, errors)
+
+    -- handing it in is something that happens at the giver, and the sweep would pay it
+    -- out wherever the player happened to be. first, and silently: unlike the two below
+    -- this is not a mistake an author made, and it leaves them nothing to report.
+    if def.giver then def.autoComplete = false end
 
     -- otherwise the items go the instant the last one is picked up, with no prompt.
     if consumes and def.autoComplete then
@@ -427,10 +488,80 @@ function QSF_Schema.normalise(raw, sourceFile)
     return def, errors
 end
 
--- the two mistakes invisible in a single file: a prereq naming a quest nobody defined,
--- and a prereq cycle.
-function QSF_Schema.crossValidate(defs)
+-- returns npc, errors. npc is nil when there is no telling who it is or where it stands.
+function QSF_Schema.normaliseNpc(raw, sourceFile)
     local errors = {}
+
+    if type(raw) ~= "table" then
+        return nil, { (sourceFile or "?") .. ": npc entry is not an object" }
+    end
+
+    local key = raw.key
+    if type(key) ~= "string" or not key:match(VALID_KEY) then
+        return nil, { (sourceFile or "?") .. ": every npc needs a key of letters, digits, dot, dash or underscore" }
+    end
+
+    local where = "npc " .. key
+
+    if type(raw.x) ~= "number" or type(raw.y) ~= "number" then
+        return nil, { where .. ": needs numeric x and y" }
+    end
+
+    local female = raw.female == true
+
+    local outfit = raw.outfit
+    if type(outfit) ~= "string" or outfit == "" then
+        outfit = FALLBACK_OUTFIT
+    elseif not QSF_outfitExists(outfit, female) then
+        errors[#errors + 1] = where .. ": there is no " .. (female and "female" or "male")
+            .. " outfit called " .. outfit .. ", so " .. FALLBACK_OUTFIT .. " is used"
+        outfit = FALLBACK_OUTFIT
+    end
+
+    local skin = math.floor(tonumber(raw.skin) or 1)
+    if skin < 1 or skin > 5 then
+        errors[#errors + 1] = where .. ": skin must be 1 to 5"
+        skin = 1
+    end
+
+    local facing = raw.facing
+    if facing ~= nil and not FACINGS[facing] then
+        errors[#errors + 1] = where .. ": facing must be one of N, NE, E, SE, S, SW, W, NW"
+        facing = nil
+    end
+
+    QSF_checkPlaceholders(raw.greeting, where, errors)
+
+    return {
+        key = key,
+        name = (type(raw.name) == "string" and raw.name ~= "") and raw.name or key,
+        x = math.floor(raw.x),
+        y = math.floor(raw.y),
+        z = math.floor(tonumber(raw.z) or 0),
+        outfit = outfit,
+        female = female,
+        skin = skin,
+        -- south-east is toward the camera, so a face rather than the back of a head.
+        facing = facing or "SE",
+        greeting = (type(raw.greeting) == "string" and raw.greeting ~= "") and raw.greeting or nil,
+        source = sourceFile,
+    }, errors
+end
+
+-- the mistakes invisible in a single file: a prereq naming a quest nobody defined, a
+-- prereq cycle, and a giver nobody defined.
+function QSF_Schema.crossValidate(defs, npcs)
+    local errors = {}
+
+    -- a giver quest is kept off the log, so one pointing at nobody could never be taken.
+    -- dropping the giver puts it back in the log, which is at least somewhere.
+    for key, def in pairs(defs) do
+        if def.giver and not (npcs and npcs[def.giver]) then
+            errors[#errors + 1] = key .. ": giver " .. def.giver
+                .. " is not a defined npc, so the quest is offered in the log instead"
+            def.giver = nil
+        end
+    end
 
     for key, def in pairs(defs) do
         for _, needed in ipairs(def.prereqs.quests or {}) do
