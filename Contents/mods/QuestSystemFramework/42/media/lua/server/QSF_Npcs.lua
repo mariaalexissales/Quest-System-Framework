@@ -22,6 +22,13 @@ local DRIFT = 1.5
 -- would leave two of them standing there.
 local MISSES = 3
 
+-- a hat knocked off an npc is put straight back on it, which leaves a second one on the
+-- ground. how long that one is looked for, how far from the npc, and how often while it
+-- is. in singleplayer the hat is thrown, and lands a moment after the hit.
+local DROP_MS = 10000
+local DROP_REACH = 2
+local DROP_POLL_MS = 250
+
 QSF_Npcs.state = QSF_Npcs.state or nil
 
 -- runtime only. how many passes in a row each npc's tile was loaded with nobody on it.
@@ -34,6 +41,9 @@ local lastBody = {}
 
 -- runtime only. npcs that were killed in spite of everything, and are owed a tidy-up.
 local died = {}
+
+-- runtime only. what was knocked off each npc and is still to be found on the ground.
+local dropped = {}
 
 -- once per message: the pass runs every two seconds for as long as the server is up.
 local function QSF_warnOnce(message)
@@ -277,6 +287,91 @@ local function QSF_clearCorpse(npc)
     end
 end
 
+-- everything it is wearing that a hit can knock off, by full type: hats, glasses, masks.
+local function QSF_fallable(zombie)
+    local types = {}
+    local visuals = zombie:getItemVisuals()
+
+    for i = 0, visuals:size() - 1 do
+        local visual = visuals:get(i)
+        local script = visual:getScriptItem()
+
+        if script and script:getChanceToFall() > 0 then
+            local fullType = visual:getItemType()
+            types[fullType] = (types[fullType] or 0) + 1
+        end
+    end
+
+    return types
+end
+
+-- a hit that lands knocks a hat or a pair of glasses off, a shove included, and nothing
+-- tells the engine not to: not invulnerable, not the avoid flag. it marks the zombie as
+-- having lost one, and from then on leaves off everything that could fall whenever it
+-- dresses it. dressing it in the id it started with puts the lot back.
+local function QSF_redress(zombie, npc, st)
+    if zombie:getPersistentOutfitID() == st.id then return end
+
+    local before = QSF_fallable(zombie)
+    zombie:dressInPersistentOutfitID(st.id)
+
+    -- whatever is back that was missing is on the ground beside it, or about to be.
+    local lost, any = {}, false
+    for fullType, count in pairs(QSF_fallable(zombie)) do
+        local missing = count - (before[fullType] or 0)
+        if missing > 0 then
+            lost[fullType] = missing
+            any = true
+        end
+    end
+
+    if any then dropped[npc.key] = { types = lost, untilMs = getTimestampMs() + DROP_MS } end
+end
+
+-- the hat is back on its head, so the one on the ground is a second hat, and an npc that
+-- gives one up for every shove would be a tap. only the types that fell, only as many as
+-- fell, only beside the npc, and only for a few seconds. anything else lying there is
+-- somebody's own.
+local function QSF_collectDropped(npc)
+    local pending = dropped[npc.key]
+    if not pending then return end
+
+    if getTimestampMs() > pending.untilMs then
+        dropped[npc.key] = nil
+        return
+    end
+
+    local cell = getCell()
+
+    for dx = -DROP_REACH, DROP_REACH do
+        for dy = -DROP_REACH, DROP_REACH do
+            local square = cell:getGridSquare(npc.x + dx, npc.y + dy, npc.z)
+            local objects = square and square:getWorldObjects() or nil
+
+            -- backwards, since taking one out shuffles the rest down.
+            for i = (objects and objects:size() or 0) - 1, 0, -1 do
+                local object = objects:get(i)
+                local item = object:getItem()
+                local fullType = item and item:getFullType() or nil
+
+                if fullType and (pending.types[fullType] or 0) > 0 then
+                    -- the pair of calls vanilla's own remove-item tool makes: one tells
+                    -- everybody, the other does it here.
+                    square:transmitRemoveItemFromSquare(object)
+                    square:removeWorldObject(object)
+                    pending.types[fullType] = pending.types[fullType] - 1
+                end
+            end
+        end
+    end
+
+    for _, count in pairs(pending.types) do
+        if count > 0 then return end
+    end
+
+    dropped[npc.key] = nil
+end
+
 -- returns true when the npc was given an id it did not have before.
 local function QSF_ensureOne(npc, st)
     if died[npc.key] then
@@ -302,6 +397,7 @@ local function QSF_ensureOne(npc, st)
             QSF_remove(keep)
             QSF_spawn(npc, st)
         else
+            QSF_redress(keep, npc, st)
             QSF_Npcs.settle(keep)
             lastBody[npc.key] = keep
         end
@@ -365,11 +461,18 @@ function QSF_Npcs.ensure()
 
     QSF_cleanUp(data)
 
+    -- an npc taken away with a hat still on the ground has nobody left to look for it.
+    for key in pairs(dropped) do
+        if not QSF_Defs.npcs[key] then dropped[key] = nil end
+    end
+
     for key, npc in pairs(QSF_Defs.npcs) do
         if QSF_loaded(npc.x, npc.y, npc.z) then
             if QSF_ensureOne(npc, data[key]) then changed = true end
+            QSF_collectDropped(npc)
         else
             misses[key] = nil
+            dropped[key] = nil
         end
     end
 
@@ -381,7 +484,11 @@ local lastEnsure = 0
 
 local function QSF_tick()
     local now = getTimestampMs()
-    if now - lastEnsure < ENSURE_MS then return end
+
+    -- while a knocked-off hat is still being looked for, often enough that nobody gets to
+    -- it first.
+    local wait = table.isempty(dropped) and ENSURE_MS or DROP_POLL_MS
+    if now - lastEnsure < wait then return end
     lastEnsure = now
 
     local ok, err = pcall(QSF_Npcs.ensure)
@@ -396,7 +503,13 @@ Events.EveryOneMinute.Add(QSF_tick)
 -- fired before the engine looks at its own avoid flag, so the swing is thrown away whole:
 -- no damage, and none of the stagger an invulnerable zombie would still be given.
 local function QSF_onHitZombie(zombie)
-    if QSF_Npcs.npcOf(zombie) then zombie:setAvoidDamage(true) end
+    if not QSF_Npcs.npcOf(zombie) then return end
+
+    zombie:setAvoidDamage(true)
+
+    -- its hat comes off after this returns, so it cannot be put back from here. the next
+    -- tick does it, rather than the pass that may be two seconds off.
+    lastEnsure = 0
 end
 
 Events.OnHitZombie.Add(QSF_onHitZombie)

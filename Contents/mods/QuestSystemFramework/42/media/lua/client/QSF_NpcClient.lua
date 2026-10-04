@@ -177,6 +177,14 @@ local function QSF_onZombieUpdate(zombie)
         return
     end
 
+    -- a hit takes its hat off on this machine's copy as well, and the server only puts it
+    -- back on its own. in singleplayer that copy is this very zombie, and the server half
+    -- has to find the mark still on it to know a hat was dropped, so it is left alone.
+    if QSF.hasRemoteServer() then
+        local id = QSF_ClientState.npcIds[npc.key]
+        if id and zombie:getPersistentOutfitID() ~= id then zombie:dressInPersistentOutfitID(id) end
+    end
+
     if dressed[zombie] ~= npc.key or not QSF_looksHuman(zombie) then
         QSF_humanise(zombie, npc)
         dressed[zombie] = npc.key
