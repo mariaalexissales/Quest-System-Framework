@@ -18,6 +18,9 @@ local SILENT = "QSF_Silent"
 -- a speech bubble has room for a sentence. the window has the rest.
 local BUBBLE_CHARS = 140
 
+-- what a zombie has at ordinary toughness, for one that stops being an npc.
+local ORDINARY_HEALTH = 1.8
+
 local VOICES = {
     "MaleZombieVoiceA", "MaleZombieVoiceB", "MaleZombieVoiceC",
     "FemaleZombieVoiceA", "FemaleZombieVoiceB", "FemaleZombieVoiceC",
@@ -127,8 +130,15 @@ local function QSF_pacify(zombie, npc)
     zombie:setTarget(nil)
     zombie:setEatBodyTarget(nil, false)
 
-    -- covers what never goes through a weapon: fire, and the front of a car.
+    -- covers what never goes through a weapon: fire, and the front of a car. only where
+    -- the game allows cheats at all, which is a server or debug mode.
     zombie:setInvulnerable(true)
+
+    -- and these cover them everywhere else: more health than any one blow takes, and
+    -- nothing for a swing or a shot to land on. the second only lasts until the zombie's
+    -- update ends, which is why the player's update does it again below.
+    zombie:setHealth(QSF.NPC_HEALTH)
+    zombie:setShootable(false)
 
     -- a noise still turns its head, and the turn is a zombie's.
     if zombie:getActionStateName() == "turnalerted" then
@@ -158,6 +168,10 @@ local function QSF_release(zombie)
     zombie:setUseless(false)
     zombie:setNoTeeth(false)
     zombie:setInvulnerable(false)
+    zombie:setShootable(true)
+
+    -- an ordinary zombie again, and not one with a thousand health.
+    if zombie:getHealth() > ORDINARY_HEALTH then zombie:setHealth(ORDINARY_HEALTH) end
 end
 
 local function QSF_onZombieUpdate(zombie)
@@ -174,14 +188,6 @@ local function QSF_onZombieUpdate(zombie)
     if not npc then
         if hasDressed and dressed[zombie] then QSF_release(zombie) end
         return
-    end
-
-    -- a hit takes its hat off on this machine's copy as well, and the server only puts it
-    -- back on its own. in singleplayer that copy is this very zombie, and the server half
-    -- has to find the mark still on it to know a hat was dropped, so it is left alone.
-    if QSF.hasRemoteServer() then
-        local id = QSF_ClientState.npcIds[npc.key]
-        if id and zombie:getPersistentOutfitID() ~= id then zombie:dressInPersistentOutfitID(id) end
     end
 
     if dressed[zombie] ~= npc.key or not QSF_looksHuman(zombie) then
@@ -251,6 +257,21 @@ function QSF_NpcClient.status(npcKey, player)
 end
 
 Events.OnZombieUpdate.Add(QSF_onZombieUpdate)
+
+-- a zombie makes itself a target again at the end of every update of its own, so it
+-- cannot be left off the list from there. this runs at the top of the player's update,
+-- ahead of anything that player can swing, shove or fire in it, and by then the npc is
+-- not on the list: nothing lands, so nothing is hurt, bloodied or knocked off its head.
+local function QSF_onPlayerUpdate()
+    if not hasDressed then return end
+
+    for key in pairs(QSF_NpcClient.bodies) do
+        local zombie = QSF_NpcClient.bodyOf(key)
+        if zombie then zombie:setShootable(false) end
+    end
+end
+
+Events.OnPlayerUpdate.Add(QSF_onPlayerUpdate)
 
 -- fired before the engine looks at its own avoid flag, so the swing is thrown away whole:
 -- no damage, and none of the stagger an invulnerable zombie would still be given. the

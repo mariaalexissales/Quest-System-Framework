@@ -124,8 +124,12 @@ function QSF_Npcs.settle(zombie)
     zombie:setNoTeeth(true)
     zombie:setTarget(nil)
 
-    -- covers what never goes through a weapon: fire, and the front of a car.
+    -- covers what never goes through a weapon: fire, and the front of a car. only where
+    -- the game allows cheats at all, which is a server or debug mode.
     zombie:setInvulnerable(true)
+
+    -- and this is what covers them everywhere else.
+    zombie:setHealth(QSF.NPC_HEALTH)
 end
 
 -- the npc this zombie is the body of, if it is one.
@@ -146,6 +150,24 @@ function QSF_Npcs.npcOf(zombie)
     return nil
 end
 
+-- everything it is wearing that a hit can knock off, by full type: hats, glasses, masks.
+local function QSF_fallable(zombie)
+    local types = {}
+    local visuals = zombie:getItemVisuals()
+
+    for i = 0, visuals:size() - 1 do
+        local visual = visuals:get(i)
+        local script = visual:getScriptItem()
+
+        if script and script:getChanceToFall() > 0 then
+            local fullType = visual:getItemType()
+            types[fullType] = (types[fullType] or 0) + 1
+        end
+    end
+
+    return types
+end
+
 -- the spawn call's own invulnerable argument is left false: it goes through setGodMod,
 -- which is switched straight back off for anything that is not a player.
 local function QSF_spawn(npc, st)
@@ -164,6 +186,9 @@ local function QSF_spawn(npc, st)
     else
         st.id = QSF_Rules.npcId(zombie)
     end
+
+    -- what it wears that could be knocked off, for telling later that something has been.
+    st.hats = QSF_fallable(zombie)
 
     zombie:setForwardIsoDirection(IsoDirections[npc.facing])
     QSF_Npcs.settle(zombie)
@@ -214,6 +239,7 @@ local function QSF_reconcile(data)
             -- a new outfit is a new roll. a new tile keeps the old one.
             if st.look ~= look then
                 st.id = nil
+                st.hats = nil
                 changed = true
             end
         end
@@ -286,38 +312,31 @@ local function QSF_clearCorpse(npc)
     end
 end
 
--- everything it is wearing that a hit can knock off, by full type: hats, glasses, masks.
-local function QSF_fallable(zombie)
-    local types = {}
-    local visuals = zombie:getItemVisuals()
+-- a hit that lands knocks a hat or a pair of glasses off a zombie, and leaves nothing on
+-- the zombie to say so: its outfit id is the same, and the hat is simply gone. players
+-- cannot land one on an npc, but something else might. so what it wears is checked against
+-- what it was dressed in, and dressing it in its id again puts the lot back.
+local function QSF_redress(zombie, npc, st)
+    local worn = QSF_fallable(zombie)
 
-    for i = 0, visuals:size() - 1 do
-        local visual = visuals:get(i)
-        local script = visual:getScriptItem()
-
-        if script and script:getChanceToFall() > 0 then
-            local fullType = visual:getItemType()
-            types[fullType] = (types[fullType] or 0) + 1
+    -- nothing written down yet is an npc from before this was kept, which may already
+    -- have lost something. it is dressed afresh once, and that is what gets written down.
+    local whole = st.hats ~= nil and zombie:getPersistentOutfitID() == st.id
+    if whole then
+        for fullType, count in pairs(st.hats) do
+            if (worn[fullType] or 0) < count then whole = false end
         end
     end
 
-    return types
-end
+    if whole then return end
 
--- a hit that lands knocks a hat or a pair of glasses off, a shove included, and nothing
--- tells the engine not to: not invulnerable, not the avoid flag. it marks the zombie as
--- having lost one, and from then on leaves off everything that could fall whenever it
--- dresses it. dressing it in the id it started with puts the lot back.
-local function QSF_redress(zombie, npc, st)
-    if zombie:getPersistentOutfitID() == st.id then return end
-
-    local before = QSF_fallable(zombie)
     zombie:dressInPersistentOutfitID(st.id)
+    st.hats = QSF_fallable(zombie)
 
     -- whatever is back that was missing is on the ground beside it, or about to be.
     local lost, any = {}, false
-    for fullType, count in pairs(QSF_fallable(zombie)) do
-        local missing = count - (before[fullType] or 0)
+    for fullType, count in pairs(st.hats) do
+        local missing = count - (worn[fullType] or 0)
         if missing > 0 then
             lost[fullType] = missing
             any = true
@@ -506,8 +525,8 @@ local function QSF_onHitZombie(zombie)
 
     zombie:setAvoidDamage(true)
 
-    -- its hat comes off after this returns, so it cannot be put back from here. the next
-    -- tick does it, rather than the pass that may be two seconds off.
+    -- a hat knocked off by the same blow cannot be put back from inside the blow. the
+    -- next tick does it, rather than the pass that may be two seconds off.
     lastEnsure = 0
 end
 
