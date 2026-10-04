@@ -7,7 +7,6 @@ require "QSF_Rules"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Rewards = QSF_Rewards or {}
 
 -- one at a time rather than AddItems, so a container that fills partway through reports
@@ -54,7 +53,7 @@ function QSF_Rewards.grant(player, def, pick)
     if chosen then QSF_giveEntry(player, chosen, def) end
 
     for perkName, amount in pairs(rewards.xp or {}) do
-        local perk = PerkFactory.Perks.FromString(perkName)
+        local perk = QSF_Rules.perk(perkName)
         if perk then player:getXp():AddXP(perk, amount) end
     end
 end

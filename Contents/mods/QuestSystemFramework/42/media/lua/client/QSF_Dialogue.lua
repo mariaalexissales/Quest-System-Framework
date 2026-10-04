@@ -36,6 +36,10 @@ local TAGS = {
     locked = "IGUI_QSF_TagLocked",
 }
 
+-- what the list shows. finished and not repeatable has nothing left to say, and a hidden
+-- quest is not to hint at itself.
+local LISTED = { turnin = true, progress = true, available = true, locked = true }
+
 function QSF_Dialogue:new(x, y, player, npc)
     local o = ISCollapsableWindow:new(x, y, WIDTH, HEIGHT)
     setmetatable(o, self)
@@ -57,23 +61,6 @@ function QSF_Dialogue:new(x, y, player, npc)
     o.resizable = false
 
     return o
-end
-
-function QSF_Dialogue:attach(button)
-    button:initialise()
-    button:instantiate()
-    self:addChild(button)
-    return button
-end
-
--- the two footer buttons each swap between two labels, so they are sized for the wider
--- one and the strip never reflows.
-local function QSF_labelWidth(button, ...)
-    local widest = 0
-    for _, key in ipairs({ ... }) do
-        widest = math.max(widest, getTextManager():MeasureStringX(button.font, getText(key)))
-    end
-    return 28 + widest
 end
 
 function QSF_Dialogue:footerY()
@@ -123,35 +110,25 @@ function QSF_Dialogue:createChildren()
     ISCollapsableWindow.createChildren(self)
     self:createList()
 
-    -- rich text, so a greeting gets <LINE> and <RGB:> the way a description does.
-    self.speech = ISRichTextPanel:new(PAD, self:titleBarHeight() + PAD, self.width - PAD * 2, 40)
-    self.speech:initialise()
-    self.speech.background = false
-    self.speech.autosetheight = true
-    self.speech.marginLeft = 0
-    self.speech.marginRight = 0
-    self.speech.marginTop = 0
-    self:addChild(self.speech)
+    self.speech = QSF_Theme.richText(self, PAD, self:titleBarHeight() + PAD, self.width - PAD * 2, 40)
 
     -- the same pane the log uses, so objectives and rewards read the same in both.
     self.detail = QSF_Detail:new(2, 0, self.width - 4, 100)
     self.detail.showBody = false
     self.detail.showGiver = false
-    self.detail:initialise()
-    self.detail:instantiate()
-    self:addChild(self.detail)
+    QSF_Theme.attach(self, self.detail)
 
     local y = self:footerY()
 
     self.back = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Goodbye"), self, QSF_Dialogue.onBack)
-    self.back:setWidth(QSF_labelWidth(self.back, "IGUI_QSF_Goodbye", "IGUI_QSF_Back"))
+    self.back:sizeToWidest(28, "IGUI_QSF_Goodbye", "IGUI_QSF_Back")
     self.back:setX(self.width - PAD - self.back:getWidth())
-    self:attach(self.back)
+    QSF_Theme.attach(self, self.back)
 
     self.primary = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Accept"), self, QSF_Dialogue.onPrimary)
-    self.primary:setWidth(QSF_labelWidth(self.primary, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn"))
+    self.primary:sizeToWidest(28, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn")
     self.primary:setX(self.back:getX() - 6 - self.primary:getWidth())
-    self:attach(self.primary)
+    QSF_Theme.attach(self, self.primary)
 
     self:refresh()
     self.revision = QSF_ClientState.revision
@@ -209,27 +186,19 @@ function QSF_Dialogue:layout()
     end
 end
 
--- what the list shows, sorted the way the log sorts. it follows the log's Available tab:
--- something in hand, something on offer, or something locked that is allowed to hint at
--- itself. finished and not repeatable has nothing left to say.
+function QSF_Dialogue:stateOf(def)
+    return QSF_Rules.questState(def, QSF_ClientState.record(def.key), self.player,
+        QSF_ClientState.state, QSF_ClientState.counts())
+end
+
+-- sorted the way the log sorts.
 function QSF_Dialogue:entries()
     local out = {}
-    local counts = QSF_ClientState.counts()
 
     for _, def in ipairs(QSF_Rules.npcQuests(self.npcKey, QSF_ClientState.ordered)) do
-        local rec = QSF_ClientState.record(def.key)
-        local status = rec and rec.status or nil
-        local state = nil
+        local state = self:stateOf(def)
 
-        if status == "active" then
-            state = QSF_Rules.isComplete(def, rec, counts) and "turnin" or "progress"
-        elseif QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state) then
-            state = "available"
-        elseif status ~= "done" and not (def.prereqs and def.prereqs.hidden) then
-            state = "locked"
-        end
-
-        if state then
+        if LISTED[state] then
             out[#out + 1] = { key = def.key, title = def.title, state = state }
         end
     end
@@ -261,18 +230,16 @@ function QSF_Dialogue:showList(npc)
 end
 
 function QSF_Dialogue:showQuest(def)
-    local rec = QSF_ClientState.record(def.key)
+    local state = self:stateOf(def)
     local lines = def.dialogue or {}
     local text, action = nil, nil
 
-    if rec and rec.status == "active" then
-        if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
-            text = lines.complete or getText("IGUI_QSF_Npc_Complete")
-            action = "turnin"
-        else
-            text = lines.progress or getText("IGUI_QSF_Npc_Progress")
-        end
-    elseif QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state) then
+    if state == "turnin" then
+        text = lines.complete or getText("IGUI_QSF_Npc_Complete")
+        action = "turnin"
+    elseif state == "progress" then
+        text = lines.progress or getText("IGUI_QSF_Npc_Progress")
+    elseif state == "available" then
         -- a quest written before it had a giver still has its description to say.
         text = lines.offer or (def.description ~= "" and def.description) or getText("IGUI_QSF_Npc_Offer")
         action = "accept"
@@ -349,9 +316,7 @@ function QSF_Dialogue:onPrimary()
         QSF_ClientState.accept(key)
     elseif self.primaryAction == "turnin" then
         if def.rewards and def.rewards.choice then
-            -- guarded the way the log guards it: a second press would stack a second picker.
-            if self.choiceModal then return end
-            self.choiceModal = QSF_Choice.show(def, key, self, QSF_Dialogue.onConfirmChoice)
+            QSF_Choice.show(def, key, self, QSF_Dialogue.onConfirmChoice)
             return
         end
         QSF_ClientState.claim(key)
@@ -364,15 +329,10 @@ function QSF_Dialogue:onPrimary()
 end
 
 function QSF_Dialogue:onConfirmChoice(key, pick)
-    self.choiceModal = nil
     if not key or not pick then return end
 
     QSF_ClientState.claim(key, pick)
     self:show(nil)
-end
-
-function QSF_Dialogue:onCancelChoice()
-    self.choiceModal = nil
 end
 
 function QSF_Dialogue:update()
@@ -404,11 +364,7 @@ function QSF_Dialogue:update()
 end
 
 function QSF_Dialogue:close()
-    -- the picker is a top-level window, so it would otherwise outlive the conversation.
-    if self.choiceModal then
-        self.choiceModal:close()
-        self.choiceModal = nil
-    end
+    QSF_Choice.dismiss(self)
 
     if QSF_Dialogue.instance == self then QSF_Dialogue.instance = nil end
 
@@ -423,8 +379,7 @@ function QSF_Dialogue.open(player, npcKey)
 
     if QSF_Dialogue.instance then QSF_Dialogue.instance:close() end
 
-    local x = (getCore():getScreenWidth() - WIDTH) / 2
-    local y = (getCore():getScreenHeight() - HEIGHT) / 2
+    local x, y = QSF_Theme.centre(WIDTH, HEIGHT)
 
     local window = QSF_Dialogue:new(x, y, player, npc)
     window:initialise()

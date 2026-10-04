@@ -4,7 +4,6 @@
 
 require "QSF_Core"
 
-QSF = QSF or {}
 QSF_Rules = QSF_Rules or {}
 
 local function QSF_worldHours()
@@ -13,13 +12,20 @@ end
 
 QSF_Rules.worldHours = QSF_worldHours
 
+-- the engine's perk for a name out of a quest file, or nil. FromString never answers nil
+-- itself: a name it does not know comes back as the MAX placeholder, which no character
+-- has a level in.
+function QSF_Rules.perk(name)
+    local perk = PerkFactory.Perks.FromString(name)
+    if not perk or perk == PerkFactory.Perks.MAX then return nil end
+    return perk
+end
+
 local function QSF_perkLevel(player, perkName)
-    local perk = PerkFactory.Perks.FromString(perkName)
+    local perk = QSF_Rules.perk(perkName)
     if not perk then return 0 end
     return player:getPerkLevel(perk)
 end
-
-QSF_Rules.perkLevel = QSF_perkLevel
 
 -- an npc is a zombie underneath, and this is the one thing about a zombie that reaches
 -- every client and survives a save. bit 15 only says the hat has come off, and would
@@ -121,6 +127,28 @@ function QSF_Rules.canAccept(def, rec, player, state)
     end
 
     return true
+end
+
+-- what a quest is to one player right now. the marker, the conversation and the log all
+-- ask this one question, so they cannot each come to their own answer.
+--   turnin     taken, and every objective met
+--   progress   taken, and not there yet
+--   available  can be taken now
+--   done       finished, and not to be taken again, or not yet
+--   hidden     locked, and not allowed to hint at itself
+--   locked     locked
+-- anything but the first three also returns what canAccept said was in the way.
+function QSF_Rules.questState(def, rec, player, state, counts)
+    if rec and rec.status == "active" then
+        return QSF_Rules.isComplete(def, rec, counts) and "turnin" or "progress"
+    end
+
+    local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, player, state)
+    if ok then return "available" end
+
+    if rec and rec.status == "done" then return "done", reason, detail, extra end
+    if def and def.prereqs and def.prereqs.hidden then return "hidden", reason, detail, extra end
+    return "locked", reason, detail, extra
 end
 
 -- the same split as canAccept: the client greys the button with this and the server

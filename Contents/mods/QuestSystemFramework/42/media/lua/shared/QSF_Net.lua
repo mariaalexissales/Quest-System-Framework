@@ -4,12 +4,7 @@
 
 require "QSF_Core"
 
-QSF = QSF or {}
 QSF_Net = QSF_Net or {}
-
-function QSF_Net.hasRemoteServer()
-    return QSF.hasRemoteServer()
-end
 
 -- looked up at call time: shared/ loads before client/ and server/, so neither dispatcher
 -- exists yet when this file runs.
@@ -17,8 +12,14 @@ local function QSF_serverHandler(command)
     return QSF_Commands and QSF_Commands.handlers and QSF_Commands.handlers[command]
 end
 
-local function QSF_clientHandler()
-    return QSF_ClientState and QSF_ClientState.onCommand
+-- the singleplayer leg of anything sent to a client: there is nobody to send to, so it is
+-- a direct call into the client's own dispatcher.
+local function QSF_deliver(command, args)
+    local handler = QSF_ClientState and QSF_ClientState.onCommand
+    if not handler then return end
+
+    local ok, err = pcall(handler, QSF.MODULE, command, args)
+    if not ok then QSF.warn("client handler " .. tostring(command) .. " failed: " .. tostring(err)) end
 end
 
 -- with no remote server the send is a direct call into the handler that would have
@@ -26,7 +27,7 @@ end
 function QSF_Net.toServer(command, args)
     args = args or {}
 
-    if QSF_Net.hasRemoteServer() then
+    if QSF.hasRemoteServer() then
         sendClientCommand(getPlayer(), QSF.MODULE, command, args)
         return
     end
@@ -49,11 +50,7 @@ function QSF_Net.toClient(player, command, args)
         return
     end
 
-    local handler = QSF_clientHandler()
-    if not handler then return end
-
-    local ok, err = pcall(handler, QSF.MODULE, command, args)
-    if not ok then QSF.warn("client handler " .. tostring(command) .. " failed: " .. tostring(err)) end
+    QSF_deliver(command, args)
 end
 
 function QSF_Net.toAll(command, args)
@@ -64,9 +61,5 @@ function QSF_Net.toAll(command, args)
         return
     end
 
-    local handler = QSF_clientHandler()
-    if not handler then return end
-
-    local ok, err = pcall(handler, QSF.MODULE, command, args)
-    if not ok then QSF.warn("client handler " .. tostring(command) .. " failed: " .. tostring(err)) end
+    QSF_deliver(command, args)
 end

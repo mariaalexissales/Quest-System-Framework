@@ -12,7 +12,6 @@ require "QSF_Npcs"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Commands = QSF_Commands or {}
 
 -- a hundred quests is more text than one command should carry.
@@ -99,15 +98,27 @@ function QSF_Commands.sendNpcs(player)
     QSF_Npcs.sendIds(player)
 end
 
+-- the client greys what it can with the same rules, so a refusal is a stale window or
+-- somebody going around the ui. it is told why either way, and what it was short of.
+local function QSF_refuse(player, key, reason, detail, extra)
+    QSF_Net.toClient(player, "toast", { kind = "refused", key = key, reason = reason,
+        detail = detail, extra = extra })
+end
+
 QSF_Commands.handlers = {}
 
-function QSF_Commands.handlers.hello(player)
-    if not player or not player:getUsername() then return end
-
+-- everything one player needs to be looking at what the server has now.
+function QSF_Commands.sync(player)
     QSF_State.reconcile(player:getUsername(), QSF_Defs.all)
     QSF_Commands.sendDefs(player)
     QSF_Commands.sendNpcs(player)
     QSF_State.sendSnapshot(player)
+end
+
+function QSF_Commands.handlers.hello(player)
+    if not player or not player:getUsername() then return end
+
+    QSF_Commands.sync(player)
 end
 
 function QSF_Commands.handlers.accept(player, args)
@@ -121,17 +132,14 @@ function QSF_Commands.handlers.accept(player, args)
     local ok, reason, detail, extra = QSF_Rules.canAccept(def, quests[args.key], player, quests)
 
     if not ok then
-        -- the client greys these rows with the same function, so this is a stale window
-        -- or somebody going around the ui. the detail goes too, so it can say what is missing.
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason,
-            detail = detail, extra = extra })
+        QSF_refuse(player, args.key, reason, detail, extra)
         return
     end
 
     -- measured against the server's own npc and the player it can see. the dialogue only
     -- opens in reach, so this is a window left open while walking off, or a crafted packet.
     if not QSF_Rules.atGiver(def, QSF_Defs.npcs, player) then
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = "TooFar" })
+        QSF_refuse(player, args.key, "TooFar")
         return
     end
 
@@ -153,8 +161,7 @@ function QSF_Commands.handlers.teleport(player, args)
     local ok, reason, hours = QSF_Rules.canTeleport(def, quests[args.key])
 
     if not ok then
-        -- the client greys the button with the same function, so this is a stale window.
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason, detail = hours })
+        QSF_refuse(player, args.key, reason, hours)
         return
     end
 
@@ -165,7 +172,7 @@ function QSF_Commands.handlers.teleport(player, args)
     -- before it offers a teleport at all.
     if not getWorld():getMetaGrid():isValidChunk(spot.x / 10, spot.y / 10) then
         QSF.warn(args.key .. ": teleport points outside the map at " .. spot.x .. "," .. spot.y)
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = "OffMap" })
+        QSF_refuse(player, args.key, "OffMap")
         return
     end
 
@@ -208,10 +215,7 @@ function QSF_Commands.handlers.claim(player, args)
     local ok, reason = QSF_Verify.claim(player, args.key, args.pick)
 
     -- an incomplete claim is just the client polling ahead of the server.
-    if not ok and reason ~= "Incomplete" then
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = args.key, reason = reason })
-    end
-
+    if not ok and reason ~= "Incomplete" then QSF_refuse(player, args.key, reason) end
 end
 
 function QSF_Commands.handlers.kills(player, args)
@@ -220,27 +224,15 @@ end
 
 -- everything that changes what is defined ends here: read the files again, stand the
 -- npcs up or take them away, and tell everybody.
-local function QSF_reloadAll(player)
+local function QSF_reloadAll()
     QSF_Defs.load()
 
     -- straight away, so an npc taken out of the files is gone before the reply lands.
     local ok, err = pcall(QSF_Npcs.ensure)
     if not ok then QSF.warn("npc pass failed: " .. tostring(err)) end
 
-    if isServer() then
-        local players = getOnlinePlayers()
-        for i = 0, players:size() - 1 do
-            local other = players:get(i)
-            QSF_State.reconcile(other:getUsername(), QSF_Defs.all)
-            QSF_Commands.sendDefs(other)
-            QSF_Commands.sendNpcs(other)
-            QSF_State.sendSnapshot(other)
-        end
-    else
-        QSF_State.reconcile(player:getUsername(), QSF_Defs.all)
-        QSF_Commands.sendDefs(player)
-        QSF_Commands.sendNpcs(player)
-        QSF_State.sendSnapshot(player)
+    for _, player in ipairs(QSF_State.players()) do
+        QSF_Commands.sync(player)
     end
 end
 
@@ -255,7 +247,7 @@ end
 function QSF_Commands.handlers.reload(player)
     if not QSF_adminOnly(player, "reload") then return end
 
-    QSF_reloadAll(player)
+    QSF_reloadAll()
     QSF_Net.toClient(player, "toast", { kind = "reloaded" })
 end
 
@@ -271,13 +263,13 @@ function QSF_Commands.handlers.npcPlace(player, args)
     for _, message in ipairs(errors or {}) do QSF.warn(message) end
 
     if not npc then
-        QSF_Net.toClient(player, "toast", { kind = "refused", reason = "BadNpc" })
+        QSF_refuse(player, nil, "BadNpc")
         return
     end
 
     -- the form checks this too, against a list that may be a reload behind.
     if QSF_Defs.npc(npc.key) then
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = npc.key, reason = "KeyTaken" })
+        QSF_refuse(player, npc.key, "KeyTaken")
         return
     end
 
@@ -285,7 +277,7 @@ function QSF_Commands.handlers.npcPlace(player, args)
     placed[#placed + 1] = npc
 
     if not QSF_Defs.writePlaced(placed) then
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = npc.key, reason = "WriteFailed" })
+        QSF_refuse(player, npc.key, "WriteFailed")
         return
     end
 
@@ -294,7 +286,7 @@ function QSF_Commands.handlers.npcPlace(player, args)
 
     -- back through the file rather than straight into the table, so what is standing in
     -- the world is only ever what the files say.
-    QSF_reloadAll(player)
+    QSF_reloadAll()
 end
 
 -- only ones the game placed. a hand-written npc is taken out of the file it was written
@@ -311,13 +303,13 @@ function QSF_Commands.handlers.npcRemove(player, args)
     end
 
     if not QSF_Defs.writePlaced(kept) then
-        QSF_Net.toClient(player, "toast", { kind = "refused", key = npc.key, reason = "WriteFailed" })
+        QSF_refuse(player, npc.key, "WriteFailed")
         return
     end
 
     QSF.log(tostring(player:getUsername()) .. " removed npc " .. npc.key)
 
-    QSF_reloadAll(player)
+    QSF_reloadAll()
     QSF_Npcs.forget(npc.key)
 end
 

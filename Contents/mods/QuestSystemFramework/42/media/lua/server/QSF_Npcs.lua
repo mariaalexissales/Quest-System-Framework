@@ -9,7 +9,6 @@ require "QSF_Defs"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_Npcs = QSF_Npcs or {}
 
 local TABLE_NAME = "QSF_NpcState"

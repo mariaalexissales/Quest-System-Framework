@@ -4,7 +4,6 @@
 
 require "QSF_Core"
 
-QSF = QSF or {}
 QSF_Towns = QSF_Towns or {}
 
 -- the towns getSquareRegion() answers "General" for. centres are the map label positions

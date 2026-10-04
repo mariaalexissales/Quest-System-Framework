@@ -26,6 +26,18 @@ function QSF_Button:sizeToTitle(padding)
     return self
 end
 
+-- for a button that swaps between labels: sized for the widest of them, so the strip it
+-- sits in never reflows mid-use. the labels are translation keys.
+function QSF_Button:sizeToWidest(padding, ...)
+    local widest = 0
+    for _, key in ipairs({ ... }) do
+        widest = math.max(widest, getTextManager():MeasureStringX(self.font, getText(key)))
+    end
+
+    self:setWidth(widest + padding)
+    return self
+end
+
 function QSF_Button:state()
     if not self.enable then return QSF_Theme.STATES.disabled end
     if self.pressed then return QSF_Theme.STATES.pressed end

@@ -8,9 +8,9 @@ require "QSF_ClientState"
 require "QSF_NpcClient"
 require "QSF_Dialogue"
 require "QSF_NpcPlace"
+require "QSF_Theme"
 require "ISUI/ISModalDialog"
 
-QSF = QSF or {}
 QSF_NpcMenu = QSF_NpcMenu or {}
 
 -- tiles either way. a character is drawn up the screen from the tile it stands on, so a
@@ -97,14 +97,8 @@ function QSF_NpcMenu.onRemove(playerNum, npcKey)
     local npc = QSF_ClientState.npcs[npcKey]
     if not npc then return end
 
-    local modal = ISModalDialog:new(
-        getCore():getScreenWidth() / 2 - 175, getCore():getScreenHeight() / 2 - 75, 350, 150,
-        getText("IGUI_QSF_RemoveNpcConfirm", npc.name), true, nil, QSF_NpcMenu.onConfirmRemove,
-        playerNum, npcKey)
-
-    modal:initialise()
-    modal:addToUIManager()
-    modal:bringToTop()
+    QSF_Theme.confirm(getText("IGUI_QSF_RemoveNpcConfirm", npc.name), nil,
+        QSF_NpcMenu.onConfirmRemove, playerNum, npcKey)
 end
 
 function QSF_NpcMenu.onConfirmRemove(_, button, npcKey)

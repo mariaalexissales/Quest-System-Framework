@@ -2,6 +2,8 @@
 --ESTRAL--
 ----------
 
+require "QSF_Rules"
+
 QSF = QSF or {}
 QSF_Theme = QSF_Theme or {}
 
@@ -48,6 +50,56 @@ function QSF_Theme.textures()
     return TEXTURES
 end
 
+-- every child goes on the same way. anchors are applied by instantiate(), so they have to
+-- be on the child before it runs.
+function QSF_Theme.attach(parent, child, anchors)
+    for key, value in pairs(anchors or {}) do child[key] = value end
+    child:initialise()
+    child:instantiate()
+    parent:addChild(child)
+    return child
+end
+
+-- text in one of the colours above. small, unless it says otherwise.
+function QSF_Theme.text(panel, text, x, y, colour, font)
+    panel:drawText(text, x, y, colour.r, colour.g, colour.b, 1, font or UIFont.Small)
+end
+
+-- rich text with no chrome and no margins, as tall as what is put in it. it is what gives
+-- a description or a line of dialogue <LINE> and <RGB:> for free.
+function QSF_Theme.richText(parent, x, y, width, height)
+    local panel = ISRichTextPanel:new(x, y, width, height)
+
+    panel:initialise()
+    panel.background = false
+    panel.autosetheight = true
+    panel.marginLeft = 0
+    panel.marginRight = 0
+    panel.marginTop = 0
+    parent:addChild(panel)
+
+    return panel
+end
+
+-- the top-left corner that puts something this size in the middle of the screen.
+function QSF_Theme.centre(width, height)
+    return (getCore():getScreenWidth() - width) / 2, (getCore():getScreenHeight() - height) / 2
+end
+
+-- a yes or no prompt, mid-screen. the callback gets the button and then param. nothing
+-- under a modal stops being clickable, so the caller holds what this returns if a second
+-- press must not stack a second prompt.
+function QSF_Theme.confirm(text, target, callback, playerNum, param)
+    local x, y = QSF_Theme.centre(350, 150)
+    local modal = ISModalDialog:new(x, y, 350, 150, text, true, target, callback, playerNum, param)
+
+    modal:initialise()
+    modal:addToUIManager()
+    modal:bringToTop()
+
+    return modal
+end
+
 -- getItemDisplayName is empty for a type the game does not know, and the full type is more
 -- use to whoever wrote the quest than a blank line would be.
 function QSF_Theme.itemName(fullType)
@@ -57,11 +109,11 @@ function QSF_Theme.itemName(fullType)
 end
 
 -- a quest file names a perk the way the engine does, Woodwork, and the character sheet calls
--- that one Carpentry. FromString answers a name it does not know with the MAX placeholder
--- rather than nil, and that is shown as it was written, the same as an item is.
+-- that one Carpentry. a name the game has no perk for is shown as it was written, the same
+-- as an item is.
 function QSF_Theme.perkName(name)
-    local perk = PerkFactory.Perks.FromString(name)
-    if not perk or perk == PerkFactory.Perks.MAX then return name end
+    local perk = QSF_Rules.perk(name)
+    if not perk then return name end
 
     local display = PerkFactory.getPerkName(perk)
     if display and display ~= "" then return display end

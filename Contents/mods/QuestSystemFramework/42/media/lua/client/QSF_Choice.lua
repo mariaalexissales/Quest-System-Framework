@@ -45,13 +45,6 @@ function QSF_Choice:new(x, y, width, height, def, key, target, onConfirm)
     return o
 end
 
-function QSF_Choice:attach(button)
-    button:initialise()
-    button:instantiate()
-    self:addChild(button)
-    return button
-end
-
 function QSF_Choice:createChildren()
     ISPanel.createChildren(self)
 
@@ -68,7 +61,7 @@ function QSF_Choice:createChildren()
         -- the ordinal is what travels to the server, so it is carried on the widget the
         -- same way the tab buttons carry theirs.
         button.index = index
-        self.picks[index] = self:attach(button)
+        self.picks[index] = QSF_Theme.attach(self, button)
 
         y = y + OPTION_HEIGHT + OPTION_GAP
     end
@@ -78,14 +71,14 @@ function QSF_Choice:createChildren()
     self.cancel = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Cancel"), self, QSF_Choice.onCancel)
     self.cancel:sizeToTitle(28)
     self.cancel:setX(self.width - PAD - self.cancel:getWidth())
-    self:attach(self.cancel)
+    QSF_Theme.attach(self, self.cancel)
 
     self.confirm = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Confirm"), self, QSF_Choice.onOk)
     self.confirm:sizeToTitle(28)
     self.confirm:setX(self.cancel:getX() - 6 - self.confirm:getWidth())
     -- nothing is picked yet, and a confirm with no pick is a refusal waiting to happen.
     self.confirm:setEnable(false)
-    self:attach(self.confirm)
+    QSF_Theme.attach(self, self.confirm)
 end
 
 function QSF_Choice:onPick(button)
@@ -108,17 +101,17 @@ function QSF_Choice:onOk()
     if callback then callback(target, key, pick) end
 end
 
+-- the quest is still active and still complete, so the footer button goes back to reading
+-- Turn In and nothing was spent.
 function QSF_Choice:onCancel()
     self:close()
-
-    -- the quest is still active and still complete, so the footer button goes back to
-    -- reading Turn In and nothing was spent.
-    if self.target and self.target.onCancelChoice then
-        self.target:onCancelChoice()
-    end
 end
 
 function QSF_Choice:close()
+    -- whoever opened it is holding it as a guard, and is let go of here whichever way
+    -- it closes.
+    if self.target and self.target.choiceModal == self then self.target.choiceModal = nil end
+
     self:setVisible(false)
     self:removeFromUIManager()
 end
@@ -126,21 +119,23 @@ end
 function QSF_Choice:render()
     ISPanel.render(self)
 
-    self:drawText(QSF_Theme.truncate(self.header, self.width - PAD * 2, UIFont.Medium), PAD, PAD,
-        QSF_Theme.COL_TITLE.r, QSF_Theme.COL_TITLE.g, QSF_Theme.COL_TITLE.b, 1, UIFont.Medium)
+    QSF_Theme.text(self, QSF_Theme.truncate(self.header, self.width - PAD * 2, UIFont.Medium), PAD, PAD,
+        QSF_Theme.COL_TITLE, UIFont.Medium)
 end
 
--- centred on the screen the way the teleport prompt is, and handed back so the caller can
--- hold it as its own reentrancy guard.
+-- centred on the screen the way the teleport prompt is. the target holds it as choiceModal
+-- until it closes: nothing under a picker stops being clickable, and a second press would
+-- otherwise stack a second one on the first.
 function QSF_Choice.show(def, key, target, onConfirm)
+    if target.choiceModal then return target.choiceModal end
+
     local choice = def and def.rewards and def.rewards.choice
     if not choice or #choice.options == 0 then return nil end
 
     local headerHeight = getTextManager():getFontHeight(UIFont.Medium)
     local height = QSF_height(#choice.options, headerHeight)
 
-    local x = getCore():getScreenWidth() / 2 - WIDTH / 2
-    local y = getCore():getScreenHeight() / 2 - height / 2
+    local x, y = QSF_Theme.centre(WIDTH, height)
 
     local picker = QSF_Choice:new(x, y, WIDTH, height, def, key, target, onConfirm)
     picker:initialise()
@@ -148,5 +143,12 @@ function QSF_Choice.show(def, key, target, onConfirm)
     picker:addToUIManager()
     picker:bringToTop()
 
+    target.choiceModal = picker
     return picker
+end
+
+-- for a window that is closing with its picker still up. the picker is a top-level window,
+-- so it would otherwise outlive whatever it belongs to.
+function QSF_Choice.dismiss(target)
+    if target.choiceModal then target.choiceModal:close() end
 end

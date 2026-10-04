@@ -5,7 +5,6 @@
 require "QSF_Core"
 require "QSF_Towns"
 
-QSF = QSF or {}
 QSF_Location = QSF_Location or {}
 
 local function QSF_inBox(x, y, box)
@@ -73,20 +72,6 @@ function QSF_Location.matchXY(x, y, z, loc)
     if loc == "General" then return not sawRegion end
 
     return false
-end
-
-function QSF_Location.matchSquare(square, loc)
-    if loc == nil or loc == false then return true end
-    if not square then return false end
-
-    return QSF_Location.matchXY(square:getX(), square:getY(), square:getZ(), loc)
-end
-
-function QSF_Location.matchPlayer(player, loc)
-    if loc == nil or loc == false then return true end
-    if not player then return false end
-
-    return QSF_Location.matchXY(player:getX(), player:getY(), player:getZ(), loc)
 end
 
 -- a short human label for the ui. boxes get described by their shape rather than their

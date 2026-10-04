@@ -32,23 +32,76 @@ local function QSF_isCurrentPanel(panel)
     return true
 end
 
--- cell 0 is the vanilla crafting button and anything flying out of it claims the cells
--- after, measured every frame so load order does not matter. Bundle Up! is named outright
--- because it measures the crafting popup exactly the way this does and would otherwise
--- land on the same cell.
-local function QSF_cellOffset(panel, textureWidth)
-    local cells = 1
+-- the two faces of the icon at this sidebar size.
+local function QSF_icons(textureWidth)
+    local stem = "media/ui/Sidebar/" .. textureWidth .. "/Quests_"
+    return getTexture(stem .. "Off_" .. textureWidth .. ".png"), getTexture(stem .. "On_" .. textureWidth .. ".png")
+end
 
-    if panel.craftingPopup and panel.craftingPopup.getWidth then
-        local width = panel.craftingPopup:getWidth() or 0
-        cells = math.max(cells, math.ceil(width / textureWidth))
+-- where the flyout cell goes, and whether what it hangs off is out. it is one more cell on
+-- the end of the map button's flyout, or beside the map button itself in a sandbox without
+-- the minimap, where that button has no flyout.
+local function QSF_host(panel, textureWidth)
+    local flyout = panel.mapPopup
+    if flyout then
+        return flyout:getX() + flyout:getWidth(), flyout:getY(), flyout:isVisible()
     end
 
-    if panel.BUUI_popup then
-        cells = cells + 1
+    local button = panel.mapBtn
+    return panel:getAbsoluteX() + button:getX() + textureWidth, panel:getAbsoluteY() + button:getY(),
+        button:isMouseOver()
+end
+
+-- vanilla's own step from one sidebar button down to the next. its constants are file-local.
+local BUTTON_STEP = 15
+
+-- the bottom of the lowest sidebar button that is showing, ours aside.
+local function QSF_lowestButton(panel)
+    local bottom = 0
+
+    for _, child in pairs(panel:getChildren()) do
+        if child ~= panel.QSF_button and child.Type == "ISButton" and child:isVisible() then
+            bottom = math.max(bottom, child:getBottom())
+        end
     end
 
-    return cells
+    return bottom
+end
+
+local function QSF_onButton(panel)
+    QSF.togglePanel(panel.chr)
+end
+
+-- a sandbox with the map switched off has no map button to hang the icon off. there it is
+-- a sidebar button of its own, under the rest, built the way vanilla builds those.
+local function QSF_ensureButton(panel, textureWidth)
+    local button = panel.QSF_button
+
+    if not button then
+        button = ISButton:new(0, 0, textureWidth, textureWidth * 0.75, "", panel, QSF_onButton)
+        button.iconOff, button.iconOn = QSF_icons(textureWidth)
+        button:setImage(button.iconOff)
+        button:initialise()
+        button:instantiate()
+        button:setDisplayBackground(false)
+        button:ignoreWidthChange()
+        button:ignoreHeightChange()
+
+        panel:addChild(button)
+        panel:addMouseOverToolTipItem(button, getText("IGUI_QSF_PanelTooltip"))
+        panel.QSF_button = button
+    end
+
+    -- vanilla shows and hides its last few buttons from one frame to the next, the admin
+    -- one for one, so under the rest is not a place that stays put.
+    local y = QSF_lowestButton(panel) + BUTTON_STEP
+    if button:getY() ~= y then
+        button:setY(y)
+        panel:shrinkWrap()
+    end
+
+    button:setImage(QSF.isWindowOpen(panel.playerNum) and button.iconOn or button.iconOff)
+    button:setVisible("Tutorial" ~= getCore():getGameMode())
 end
 
 QSF_Popup = ISPanel:derive("QSF_Popup")
@@ -70,8 +123,7 @@ function QSF_Popup:setTextures(textureWidth)
     if self.textureWidth == textureWidth then return end
 
     self.textureWidth = textureWidth
-    self.iconOff = getTexture("media/ui/Sidebar/" .. textureWidth .. "/Quests_Off_" .. textureWidth .. ".png")
-    self.iconOn = getTexture("media/ui/Sidebar/" .. textureWidth .. "/Quests_On_" .. textureWidth .. ".png")
+    self.iconOff, self.iconOn = QSF_icons(textureWidth)
 end
 
 function QSF_Popup:render()
@@ -127,14 +179,22 @@ function QSF_Popup:hideTooltip()
     end
 end
 
-local function QSF_ensurePopup(panel)
+-- makes the icon if there is none and puts it in its place: a cell that flies out with the
+-- map button's, or a button of the sidebar's own where there is no map button. true when
+-- the cell should be out.
+local function QSF_ensureIcon(panel)
     if not panel or not panel.chr or panel.chr:getPlayerNum() ~= 0 or not panel.craftingBtn then
-        return
+        return false
     end
-    if not QSF_isCurrentPanel(panel) then return end
+    if not QSF_isCurrentPanel(panel) then return false end
 
     local textureWidth = QSF_textureWidth()
     local textureHeight = textureWidth * 0.75
+
+    if not panel.mapBtn then
+        QSF_ensureButton(panel, textureWidth)
+        return false
+    end
 
     if not panel.QSF_popup then
         panel.QSF_popup = QSF_Popup:new(0, 0, textureWidth, textureHeight, panel.chr)
@@ -143,35 +203,20 @@ local function QSF_ensurePopup(panel)
         panel.QSF_popup:setVisible(false)
     end
 
-    local offset = QSF_cellOffset(panel, textureWidth)
-    panel.QSF_popup:setX(panel:getAbsoluteX() + panel.craftingBtn:getX() + offset * textureWidth)
-    panel.QSF_popup:setY(panel:getAbsoluteY() + panel.craftingBtn:getY())
+    local x, y, hostOut = QSF_host(panel, textureWidth)
+    panel.QSF_popup:setX(x)
+    panel.QSF_popup:setY(y)
     panel.QSF_popup:setWidth(textureWidth)
     panel.QSF_popup:setHeight(textureHeight)
     panel.QSF_popup:setTextures(textureWidth)
+
+    return hostOut
 end
 
-local function QSF_updateVisibility(panel)
-    if not panel or not panel.craftingBtn or not panel.QSF_popup then return end
-    if not QSF_isCurrentPanel(panel) then return end
+local function QSF_updateVisibility(panel, hostOut)
+    if not panel or not panel.QSF_popup then return end
 
-    local show = panel.craftingBtn:isMouseOver()
-        or panel.QSF_popup:isMouseOver()
-        or QSF.isWindowOpen(panel.chr:getPlayerNum())
-
-    -- without this the cursor loses us halfway: travelling right from the crafting
-    -- button to our cell crosses whatever else is flying out in between.
-    if not show and panel.craftingPopup and panel.craftingPopup.isMouseOver then
-        show = panel.craftingPopup:isMouseOver()
-    end
-
-    if not show and panel.BUUI_popup and panel.BUUI_popup.isMouseOver then
-        show = panel.BUUI_popup:isMouseOver()
-    end
-
-    if "Tutorial" == getCore():getGameMode() then
-        show = false
-    end
+    local show = hostOut or panel.QSF_popup:isMouseOver()
 
     panel.QSF_popup:setVisible(show)
 
@@ -196,15 +241,14 @@ local function QSF_patchSidebar()
 
     function ISEquippedItem:initialise()
         if originalInitialise then originalInitialise(self) end
-        QSF_ensurePopup(self)
+        QSF_ensureIcon(self)
     end
 
     function ISEquippedItem:prerender()
         if originalPrerender then originalPrerender(self) end
         if not QSF_isCurrentPanel(self) then return end
 
-        QSF_ensurePopup(self)
-        QSF_updateVisibility(self)
+        QSF_updateVisibility(self, QSF_ensureIcon(self))
     end
 
     function ISEquippedItem:removeFromUIManager()
@@ -223,7 +267,7 @@ local function QSF_patchSidebar()
 
     function ISEquippedItem:checkSidebarSizeOption()
         if originalCheckSize then originalCheckSize(self) end
-        if QSF_isCurrentPanel(self) then QSF_ensurePopup(self) end
+        if QSF_isCurrentPanel(self) then QSF_ensureIcon(self) end
     end
 end
 

@@ -8,7 +8,6 @@ require "QSF_Rules"
 
 if not QSF.isAuthority() then return end
 
-QSF = QSF or {}
 QSF_State = QSF_State or {}
 
 local TABLE_NAME = "QSF_PlayerState"
@@ -148,19 +147,27 @@ function QSF_State.markTeleport(username, key)
     return true
 end
 
+-- everybody the server can see. in singleplayer that is the one player, and there is no
+-- online list to ask.
+function QSF_State.players()
+    if not isServer() then return { getPlayer() } end
+
+    local out = {}
+    local online = getOnlinePlayers()
+    for i = 0, online:size() - 1 do out[#out + 1] = online:get(i) end
+
+    return out
+end
+
 local function QSF_playerByName(username)
     if not isServer() then return getPlayer() end
 
-    local players = getOnlinePlayers()
-    for i = 0, players:size() - 1 do
-        local player = players:get(i)
+    for _, player in ipairs(QSF_State.players()) do
         if player:getUsername() == username then return player end
     end
 
     return nil
 end
-
-QSF_State.playerByName = QSF_playerByName
 
 function QSF_State.sendSnapshot(player)
     if not player then return end

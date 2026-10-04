@@ -64,25 +64,6 @@ function QSF_Panel:bands()
     return tabY, listY, footerY, listW
 end
 
--- the footer button swaps between Accept, Turn In and Abandon, so it is sized for the
--- widest of them and the strip never reflows mid-use.
-local function QSF_labelWidth(button, ...)
-    local widest = 0
-    for _, key in ipairs({ ... }) do
-        widest = math.max(widest, getTextManager():MeasureStringX(button.font, getText(key)))
-    end
-    return 24 + widest
-end
-
--- anchors are applied by instantiate(), so they have to be assigned before it runs.
-function QSF_Panel:attach(button, anchors)
-    for key, value in pairs(anchors or {}) do button[key] = value end
-    button:initialise()
-    button:instantiate()
-    self:addChild(button)
-    return button
-end
-
 function QSF_Panel:createChildren()
     ISCollapsableWindow.createChildren(self)
 
@@ -91,19 +72,19 @@ function QSF_Panel:createChildren()
     self.tabActive = QSF_Button:new(PAD, tabY, 10, TAB_HEIGHT, getText("IGUI_QSF_TabActive"), self, QSF_Panel.onTab)
     self.tabActive:sizeToTitle(28)
     self.tabActive.tab = "active"
-    self:attach(self.tabActive)
+    QSF_Theme.attach(self, self.tabActive)
 
     self.tabAvailable = QSF_Button:new(self.tabActive:getRight() + 4, tabY, 10, TAB_HEIGHT,
         getText("IGUI_QSF_TabAvailable"), self, QSF_Panel.onTab)
     self.tabAvailable:sizeToTitle(28)
     self.tabAvailable.tab = "available"
-    self:attach(self.tabAvailable)
+    QSF_Theme.attach(self, self.tabAvailable)
 
     self.tabDone = QSF_Button:new(self.tabAvailable:getRight() + 4, tabY, 10, TAB_HEIGHT,
         getText("IGUI_QSF_TabDone"), self, QSF_Panel.onTab)
     self.tabDone:sizeToTitle(28)
     self.tabDone.tab = "done"
-    self:attach(self.tabDone)
+    QSF_Theme.attach(self, self.tabDone)
 
     local listHeight = footerY - listY - GAP - 2
 
@@ -126,25 +107,23 @@ function QSF_Panel:createChildren()
     self.listHeight = listHeight
     self:addChild(self.list)
 
-    self.detail = QSF_Detail:new(PAD + listW + GAP, listY, self.width - listW - PAD * 2 - GAP, listHeight)
-    self.detail:initialise()
-    self.detail:instantiate()
-    self:addChild(self.detail)
+    self.detail = QSF_Theme.attach(self,
+        QSF_Detail:new(PAD + listW + GAP, listY, self.width - listW - PAD * 2 - GAP, listHeight))
 
     self.action = QSF_Button:new(PAD, footerY + 2, 10, FOOTER_HEIGHT - 6, getText("IGUI_QSF_Accept"), self, QSF_Panel.onAction)
-    self.action:setWidth(QSF_labelWidth(self.action, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon"))
-    self:attach(self.action)
+    self.action:sizeToWidest(24, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon")
+    QSF_Theme.attach(self, self.action)
 
     -- beside the action button, which keeps a fixed x and a fixed width, so its right edge
     -- is a stable anchor and the strip never reflows.
     self.teleport = QSF_Button:new(self.action:getRight() + 4, footerY + 2, 10, FOOTER_HEIGHT - 6,
         getText("IGUI_QSF_Teleport"), self, QSF_Panel.onTeleport)
-    self.teleport:setWidth(QSF_labelWidth(self.teleport, "IGUI_QSF_Teleport", "IGUI_QSF_TeleportCooldown"))
-    self:attach(self.teleport)
+    self.teleport:sizeToWidest(24, "IGUI_QSF_Teleport", "IGUI_QSF_TeleportCooldown")
+    QSF_Theme.attach(self, self.teleport)
 
     self.reload = QSF_Button:new(self.width - PAD - 90, footerY + 2, 90, FOOTER_HEIGHT - 6,
         getText("IGUI_QSF_Reload"), self, QSF_Panel.onReload)
-    self:attach(self.reload, { anchorLeft = false, anchorRight = true })
+    QSF_Theme.attach(self, self.reload, { anchorLeft = false, anchorRight = true })
 
     self:refresh()
 end
@@ -166,45 +145,34 @@ function QSF_Panel:onAction()
     local def = QSF_ClientState.defs[self.selected]
     if not def then return end
 
-    local rec = QSF_ClientState.record(self.selected)
+    local state = self:stateOf(def)
 
-    if rec and rec.status == "active" then
-        if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
-            -- the button is greyed for these, but a click can beat the refresh that greys it.
-            if def.giver then return end
-
-            if def.rewards and def.rewards.choice then
-                self:onChoose(def)
-            else
-                QSF_ClientState.claim(self.selected)
-            end
-        else
-            QSF_ClientState.abandon(self.selected)
-        end
+    if state == "progress" then
+        QSF_ClientState.abandon(self.selected)
         return
     end
 
+    -- the button is greyed for these, but a click can beat the refresh that greys it.
     if def.giver then return end
 
-    QSF_ClientState.accept(self.selected)
+    if state ~= "turnin" then
+        QSF_ClientState.accept(self.selected)
+    elseif def.rewards and def.rewards.choice then
+        self:onChoose(def)
+    else
+        QSF_ClientState.claim(self.selected)
+    end
 end
 
--- guarded and keyed the same way the teleport prompt is: a second press would otherwise
--- stack a second picker, and a selection that moves while one is open must not pay out a
--- different quest.
+-- keyed the same way the teleport prompt is: a selection that moves while the picker is
+-- open must not pay out a different quest.
 function QSF_Panel:onChoose(def)
-    if self.choiceModal then return end
-    self.choiceModal = QSF_Choice.show(def, self.selected, self, QSF_Panel.onConfirmChoice)
+    QSF_Choice.show(def, self.selected, self, QSF_Panel.onConfirmChoice)
 end
 
 function QSF_Panel:onConfirmChoice(key, pick)
-    self.choiceModal = nil
     if not key or not pick then return end
     QSF_ClientState.claim(key, pick)
-end
-
-function QSF_Panel:onCancelChoice()
-    self.choiceModal = nil
 end
 
 -- the first confirmation in the mod. accept, abandon and turn in all still fire on the
@@ -216,16 +184,8 @@ function QSF_Panel:onTeleport()
     -- prompt on the first. vanilla guards its sleep dialog the same way.
     if self.teleportModal then return end
 
-    local modal = ISModalDialog:new(
-        getCore():getScreenWidth() / 2 - 175, getCore():getScreenHeight() / 2 - 75, 350, 150,
-        getText("IGUI_QSF_TeleportConfirm"), true, self, QSF_Panel.onConfirmTeleport,
-        self.playerNum, self.selected)
-
-    modal:initialise()
-    modal:addToUIManager()
-    modal:bringToTop()
-
-    self.teleportModal = modal
+    self.teleportModal = QSF_Theme.confirm(getText("IGUI_QSF_TeleportConfirm"), self,
+        QSF_Panel.onConfirmTeleport, self.playerNum, self.selected)
 end
 
 -- the key travels with the modal, so a selection that moves while it is open cannot send
@@ -241,6 +201,11 @@ function QSF_Panel:onReload()
     QSF_ClientState.reload()
 end
 
+function QSF_Panel:stateOf(def)
+    return QSF_Rules.questState(def, QSF_ClientState.record(def.key), self.player,
+        QSF_ClientState.state, QSF_ClientState.counts())
+end
+
 function QSF_Panel:buildRows()
     local rows = {}
     local counts = QSF_ClientState.counts()
@@ -248,7 +213,7 @@ function QSF_Panel:buildRows()
     for _, def in ipairs(QSF_ClientState.ordered) do
         local rec = QSF_ClientState.record(def.key)
         local status = rec and rec.status or nil
-        local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
+        local state, reason, detail, extra = self:stateOf(def)
 
         local wanted = false
         if self.tab == "active" then
@@ -256,16 +221,13 @@ function QSF_Panel:buildRows()
         elseif self.tab == "done" then
             wanted = status == "done"
         else
-            -- not started, plus a repeatable back off cooldown.
-            wanted = status ~= "active" and (status ~= "done" or ok)
-            -- hidden means it should not even hint at itself yet.
-            if wanted and not ok and def.prereqs and def.prereqs.hidden then wanted = false end
-            -- on offer from somebody out in the world, and found by going there.
-            if def.giver then wanted = false end
+            -- not started, plus a repeatable back off cooldown. a hidden one does not even
+            -- hint at itself, and one with a giver is found by going to them.
+            wanted = (state == "available" or state == "locked") and not def.giver
         end
 
         if wanted then
-            local locked = self.tab == "available" and not ok
+            local locked = self.tab == "available" and state == "locked"
             local row = {
                 key = def.key,
                 title = def.title,
@@ -340,27 +302,23 @@ function QSF_Panel:updateAction()
         return
     end
 
-    local rec = QSF_ClientState.record(self.selected)
+    local state = self:stateOf(def)
 
-    if rec and rec.status == "active" then
-        if QSF_Rules.isComplete(def, rec, QSF_ClientState.counts()) then
-            -- still reads Turn In, greyed, rather than swapping to Abandon: the same spot
-            -- on the same button throwing a finished quest away would be a trap. the
-            -- pane says who to take it back to.
-            self.action:setTitle(getText("IGUI_QSF_TurnIn"))
-            self.action:setEnable(not def.giver)
-        else
-            self.action:setTitle(getText("IGUI_QSF_Abandon"))
-            self.action:setEnable(true)
-        end
-        return
+    if state == "turnin" then
+        -- still reads Turn In, greyed, rather than swapping to Abandon: the same spot on
+        -- the same button throwing a finished quest away would be a trap. the pane says
+        -- who to take it back to.
+        self.action:setTitle(getText("IGUI_QSF_TurnIn"))
+        self.action:setEnable(not def.giver)
+    elseif state == "progress" then
+        self.action:setTitle(getText("IGUI_QSF_Abandon"))
+        self.action:setEnable(true)
+    else
+        -- the same answer the row greyed itself with. a giver quest only reaches this on
+        -- Completed, as a repeatable that is ready again, and is taken from the giver.
+        self.action:setTitle(getText("IGUI_QSF_Accept"))
+        self.action:setEnable(state == "available" and not def.giver)
     end
-
-    -- the same predicate the row greyed itself with. a giver quest only reaches this on
-    -- Completed, as a repeatable that is ready again, and is taken from the giver.
-    local ok = QSF_Rules.canAccept(def, rec, self.player, QSF_ClientState.state)
-    self.action:setTitle(getText("IGUI_QSF_Accept"))
-    self.action:setEnable(ok == true and not def.giver)
 end
 
 -- only reachable on a quest the player is actually on, so it is hidden outright rather
@@ -419,8 +377,7 @@ function QSF_Panel:render()
     if #self.rows == 0 then
         local _, listY, _, listW = self:bands()
         local text = QSF_ClientState.ready and getText("IGUI_QSF_Empty_" .. self.tab) or getText("IGUI_QSF_Connecting")
-        self:drawText(text, PAD + 10, listY + 10,
-            QSF_Theme.COL_DIM.r, QSF_Theme.COL_DIM.g, QSF_Theme.COL_DIM.b, 1, UIFont.Small)
+        QSF_Theme.text(self, text, PAD + 10, listY + 10, QSF_Theme.COL_DIM)
     end
 end
 
@@ -474,11 +431,7 @@ function QSF_Panel:onResize()
 end
 
 function QSF_Panel:close()
-    -- the picker is a top-level window, so it would otherwise outlive the log it belongs to.
-    if self.choiceModal then
-        self.choiceModal:close()
-        self.choiceModal = nil
-    end
+    QSF_Choice.dismiss(self)
 
     local data = QSF.players[self.playerNum]
     if data and data.instance == self then
@@ -510,10 +463,10 @@ function QSF.openPanel(player)
     end
 
     local width, height = 880, 600
-    local x = data.x or (getCore():getScreenWidth() - width) / 2
-    local y = data.y or (getCore():getScreenHeight() - height) / 2
+    local x, y = QSF_Theme.centre(width, height)
 
-    local window = QSF_Panel:new(x, y, width, height, player)
+    -- back where it was last left, if it has been open before.
+    local window = QSF_Panel:new(data.x or x, data.y or y, width, height, player)
     window:initialise()
     window:instantiate()
     window:addToUIManager()
