@@ -1,0 +1,47 @@
+{
+  // these need One More Horde: Horde Night switched on. without it they still load, but
+  // nothing counts toward them and the log says so.
+  "quests": [
+    {
+      "key": "first_horde",
+      "title": "First Night",
+      "description": "They come all at once after dark, and they know where you sleep. <LINE> Still be standing when it's over and I'll kit you out properly.",
+      "order": 60,
+      "objectives": [
+        { "type": "horde", "count": 1 }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.BaseballBat", "count": 1 },
+          { "item": "Base.KitchenKnife", "count": 1 },
+          { "item": "Base.Crowbar", "count": 1 }
+        ]
+      }
+    },
+
+    {
+      "key": "horde_veteran",
+      "title": "Hold The Line",
+      "description": "One night could be luck. <LINE> Three of them, and a hundred down by your own hand, and nobody's calling it luck.",
+      "order": 70,
+      "prereqs": {
+        "quests": ["first_horde"]
+      },
+      "objectives": [
+        { "type": "horde", "count": 3 },
+        { "type": "hordeKill", "count": 100, "label": "Put down during a horde" }
+      ],
+      "rewards": {
+        "xp": { "Axe": 250 },
+        "choice": {
+          "label": "Take one",
+          "options": [
+            { "item": "Base.Machete", "count": 1 },
+            { "item": "Base.HandAxe", "count": 1 },
+            { "item": "Base.Pistol", "count": 1 }
+          ]
+        }
+      }
+    }
+  ]
+}
