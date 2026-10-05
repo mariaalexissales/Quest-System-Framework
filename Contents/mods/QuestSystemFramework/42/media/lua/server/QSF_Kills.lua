@@ -13,9 +13,9 @@ QSF_Kills = QSF_Kills or {}
 
 local MAX_PER_FLUSH = 40
 
--- credited where the zombie died rather than where the player stands, so a shot across a
--- boundary still counts for the place it was aimed at.
-function QSF_Kills.credit(username, x, y, z)
+-- one step on every active objective of this kind. a counter with no place to test leaves
+-- the coordinates off and matches anywhere.
+function QSF_Kills.bump(username, kind, x, y, z)
     if not username then return end
 
     local quests = QSF_State.forPlayer(username)
@@ -29,7 +29,7 @@ function QSF_Kills.credit(username, x, y, z)
 
             if def then
                 for i, obj in ipairs(def.objectives) do
-                    if obj.type == "kill" and QSF_Location.matchXY(x, y, z, obj.location) then
+                    if obj.type == kind and (not x or QSF_Location.matchXY(x, y, z, obj.location)) then
                         local justFinished = QSF_State.addKill(username, key, i, obj.count)
                         -- a counter hitting its target skips the send throttle.
                         QSF_State.markDirty(username, key, justFinished)
@@ -38,6 +38,12 @@ function QSF_Kills.credit(username, x, y, z)
             end
         end
     end
+end
+
+-- credited where the zombie died rather than where the player stands, so a shot across a
+-- boundary still counts for the place it was aimed at.
+function QSF_Kills.credit(username, x, y, z)
+    QSF_Kills.bump(username, "kill", x, y, z)
 end
 
 local function QSF_onZombieDead(zombie)
