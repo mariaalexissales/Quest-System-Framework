@@ -1,6 +1,8 @@
 version=1
 id=3794717412
 title=Quest System Framework
+description=[img]https://i.imgur.com/lja52Fs.gif[/img]
+description=
 description=[h1]Quest System Framework[/h1]
 description=[h2]Made for MP Servers in mind :D[/h2]
 description=[b]Quests your admins write in a text (.json) file. No Lua, no repacking, no restart.[/b]
@@ -48,7 +50,7 @@ description=Stand someone on a tile and let them hand out the work. Players righ
 description=
 description=[code]{
 description=  "npcs": [
-description=    { "key": "old_joe", "name": "Old Joe", "x": 10629, "y": 9312, "z": 0,
+description=    { "key": "old_joe", "name": "Old Joe", "x": 10629, "y": 9312,
 description=      "outfit": "Farmer", "greeting": "Got work, {player}." }
 description=  ],
 description=  "quests": [
@@ -61,7 +63,7 @@ description=}[/code]
 description=
 description=[hr][/hr]
 description=[h2]One More Horde Compatibility[/h2]
-description=Running [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3777891317]One More Horde: Horde Night[/url]? Quests can count the hordes you survive ([b]horde[/b]) and the horde zombies you put down ([b]hordeKill[/b]). No setup needed.
+description=With [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3777891317]One More Horde: Horde Night[/url], quests can count hordes survived ([b]horde[/b]) and horde zombies killed ([b]hordeKill[/b]).
 description=
 description=[code]{
 description=  "key": "first_horde",
