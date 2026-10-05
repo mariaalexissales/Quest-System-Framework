@@ -143,6 +143,10 @@ local function QSF_normaliseTeleport(raw, key, errors)
     }
 end
 
+-- counted by One More Horde, which says who survived and who killed but never where, so
+-- these two carry no location at all.
+local HORDE_TYPES = { horde = true, hordeKill = true }
+
 local function QSF_normaliseObjective(raw, index, questLocation, errors, key)
     local where = key .. " objective " .. index
 
@@ -152,8 +156,8 @@ local function QSF_normaliseObjective(raw, index, questLocation, errors, key)
     end
 
     local kind = raw.type
-    if kind ~= "kill" and kind ~= "collect" then
-        errors[#errors + 1] = where .. ": type must be kill or collect"
+    if kind ~= "kill" and kind ~= "collect" and not HORDE_TYPES[kind] then
+        errors[#errors + 1] = where .. ": type must be kill, collect, horde or hordeKill"
         return nil
     end
 
@@ -170,7 +174,9 @@ local function QSF_normaliseObjective(raw, index, questLocation, errors, key)
     end
 
     -- absent inherits the quest's, false clears it. json cannot say "absent" any other way.
-    if raw.location == nil then
+    if HORDE_TYPES[kind] then
+        location = nil
+    elseif raw.location == nil then
         location = questLocation
     elseif location == false then
         location = nil
@@ -564,6 +570,20 @@ function QSF_Schema.crossValidate(defs, npcs)
         for _, needed in ipairs(def.prereqs.quests or {}) do
             if not defs[needed] then
                 errors[#errors + 1] = key .. ": requires unknown quest " .. needed
+            end
+        end
+    end
+
+    -- kept rather than rejected: the same file has to load on a server that adds the mod
+    -- later. looked up at call time, and nil when One More Horde is off.
+    if not OneMoreHordeExtensions then
+        for key, def in pairs(defs) do
+            for _, obj in ipairs(def.objectives) do
+                if HORDE_TYPES[obj.type] then
+                    errors[#errors + 1] = key .. ": " .. obj.type
+                        .. " objectives need One More Horde, and will not move without it"
+                    break
+                end
             end
         end
     end

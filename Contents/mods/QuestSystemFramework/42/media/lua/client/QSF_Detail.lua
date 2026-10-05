@@ -280,5 +280,13 @@ function QSF_Detail:objectiveLabel(obj)
         return getText("IGUI_QSF_KillZombies")
     end
 
+    if obj.type == "horde" then
+        return getText("IGUI_QSF_SurviveHordes")
+    end
+
+    if obj.type == "hordeKill" then
+        return getText("IGUI_QSF_KillHordeZombies")
+    end
+
     return QSF_Theme.itemName(obj.item)
 end

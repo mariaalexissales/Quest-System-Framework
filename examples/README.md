@@ -79,6 +79,35 @@ you". Items in a backpack count either way.
 
 Skip `label` and you get the item's name, or "Zombies killed".
 
+### One More Horde
+
+```json
+{ "type": "horde",     "count": 1 }
+{ "type": "hordeKill", "count": 100, "label": "Put down during a horde" }
+```
+
+These two are for servers running
+[One More Horde: Horde Night](https://steamcommunity.com/sharedfiles/filedetails/?id=3777891317).
+`horde.json` in this folder has two quests built on them.
+
+`horde` counts the horde nights you survive. It goes by who that mod would reward: you were there,
+you're alive at the end, and it didn't write you off as a casualty. A night the group loses counts
+for nobody.
+
+`hordeKill` counts the horde's own zombies, the ones that mod sends at you and puts against your
+name on its leaderboard. A stray that wanders in during the night is an ordinary `kill`.
+
+Neither takes a `location`. That mod says who, not where, so one written on them is ignored and
+they don't inherit the quest's.
+
+Skip `label` and you get "Hordes survived" or "Horde zombies killed".
+
+Without that mod switched on they still load, nothing counts toward them, and the log says so:
+
+```
+[QSF] WARN: first_horde: horde objectives need One More Horde, and will not move without it
+```
+
 ## Prereqs
 
 ```json
@@ -367,6 +396,10 @@ A prereq loop, where A needs B and B needs A, gets caught at load. Left alone it
 quests permanently unavailable and nothing would ever tell you why.
 
 Kills count where the zombie died, not where the player was standing.
+
+One More Horde keeps a list of the mods it allows on its Official leaderboard, and this one isn't
+on it yet. The horde objectives work regardless. A run with both mods on is flagged "Mod Added
+Denied" over there, which is that mod's call and not something a quest file can change.
 
 An NPC is a zombie underneath, dressed up and held still. Anything that acts on every zombie acts
 on it too. Clearing zombies with an admin command takes the NPCs with them, and they're back in a
