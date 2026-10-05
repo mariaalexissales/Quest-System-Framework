@@ -20,6 +20,8 @@
     "IGUI_QSF_RewardXp": "%1 +%2 XP",
     "IGUI_QSF_Locked": "Locked",
     "IGUI_QSF_KillZombies": "Zombies killed",
+    "IGUI_QSF_SurviveHordes": "Hordes survived",
+    "IGUI_QSF_KillHordeZombies": "Horde zombies killed",
     "IGUI_QSF_MarkedArea": "a marked area",
     "IGUI_QSF_PickAQuest": "Pick a quest from the list",
     "IGUI_QSF_Connecting": "Waiting for the server...",
