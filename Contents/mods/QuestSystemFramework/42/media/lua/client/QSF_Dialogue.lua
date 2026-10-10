@@ -13,8 +13,6 @@ require "QSF_Rules"
 require "QSF_Text"
 require "QSF_NpcClient"
 
-QSF = QSF or {}
-
 QSF_Dialogue = ISCollapsableWindow:derive("QSF_Dialogue")
 
 local WIDTH = 400
@@ -67,26 +65,15 @@ function QSF_Dialogue:footerY()
     return self.height - PAD - BUTTON_HEIGHT
 end
 
--- the quests on offer, however many there are. NeatUI's list builds only as many buttons
--- as fit and hands them round as it scrolls, so a button is whichever quest it was last
--- given.
+-- the quests on offer, however many there are, a button each.
 function QSF_Dialogue:createList()
-    self.list = NIVirtualScrollView:new(PAD, 0, self.width - PAD * 2, MIN_LIST)
-    self.list:initialise()
-    self.list:instantiate()
-    -- setOnCreateItem after instantiate: createChildren already ran initializePool once
-    -- with no callback set and quietly did nothing.
-    self.list:setOnCreateItem(function()
-        local button = QSF_Button:new(0, 0, self.list:getWidth(), OPTION_HEIGHT, "", self, QSF_Dialogue.onOption)
-        -- the pool calls initialise for us but not instantiate.
-        button:instantiate()
-        return button
-    end)
-    self.list:setOnUpdateItem(function(button, entry)
-        self:fillOption(button, entry)
-    end)
-    self.list:setConfig(OPTION_HEIGHT, OPTION_GAP)
-    self:addChild(self.list)
+    self.list = QSF_Theme.scrollList(self, PAD, 0, self.width - PAD * 2, MIN_LIST, OPTION_HEIGHT, OPTION_GAP,
+        function(list)
+            return QSF_Button:new(0, 0, list:getWidth(), OPTION_HEIGHT, "", self, QSF_Dialogue.onOption)
+        end,
+        function(button, entry)
+            self:fillOption(button, entry)
+        end)
 end
 
 function QSF_Dialogue:fillOption(button, entry)
@@ -150,7 +137,6 @@ function QSF_Dialogue:say(text, def)
     end
 end
 
-
 -- the window is as tall as what it is showing needs, and never shorter than it opens. the
 -- list scrolls, so it asks for little. a quest's details do not, and need as much as the
 -- pane took the last time it drew them.
@@ -186,17 +172,12 @@ function QSF_Dialogue:layout()
     end
 end
 
-function QSF_Dialogue:stateOf(def)
-    return QSF_Rules.questState(def, QSF_ClientState.record(def.key), self.player,
-        QSF_ClientState.state, QSF_ClientState.counts())
-end
-
 -- sorted the way the log sorts.
 function QSF_Dialogue:entries()
     local out = {}
 
-    for _, def in ipairs(QSF_Rules.npcQuests(self.npcKey, QSF_ClientState.ordered)) do
-        local state = self:stateOf(def)
+    for _, def in ipairs(QSF_ClientState.questsOf(self.npcKey)) do
+        local state = QSF_ClientState.stateOf(def, self.player)
 
         if LISTED[state] then
             out[#out + 1] = { key = def.key, title = def.title, state = state }
@@ -230,7 +211,7 @@ function QSF_Dialogue:showList(npc)
 end
 
 function QSF_Dialogue:showQuest(def)
-    local state = self:stateOf(def)
+    local state = QSF_ClientState.stateOf(def, self.player)
     local lines = def.dialogue or {}
     local text, action = nil, nil
 
@@ -315,11 +296,8 @@ function QSF_Dialogue:onPrimary()
     if self.primaryAction == "accept" then
         QSF_ClientState.accept(key)
     elseif self.primaryAction == "turnin" then
-        if def.rewards and def.rewards.choice then
-            QSF_Choice.show(def, key, self, QSF_Dialogue.onConfirmChoice)
-            return
-        end
-        QSF_ClientState.claim(key)
+        -- a reward to pick first keeps the quest open until it has been.
+        if not QSF_Choice.turnIn(def, key, self, QSF_Dialogue.onPicked) then return end
     else
         return
     end
@@ -328,10 +306,7 @@ function QSF_Dialogue:onPrimary()
     self:show(nil)
 end
 
-function QSF_Dialogue:onConfirmChoice(key, pick)
-    if not key or not pick then return end
-
-    QSF_ClientState.claim(key, pick)
+function QSF_Dialogue:onPicked()
     self:show(nil)
 end
 
@@ -381,11 +356,5 @@ function QSF_Dialogue.open(player, npcKey)
 
     local x, y = QSF_Theme.centre(WIDTH, HEIGHT)
 
-    local window = QSF_Dialogue:new(x, y, player, npc)
-    window:initialise()
-    window:instantiate()
-    window:addToUIManager()
-    window:bringToTop()
-
-    QSF_Dialogue.instance = window
+    QSF_Dialogue.instance = QSF_Theme.open(QSF_Dialogue:new(x, y, player, npc))
 end

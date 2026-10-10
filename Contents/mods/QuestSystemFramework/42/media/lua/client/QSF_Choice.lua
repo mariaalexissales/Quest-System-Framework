@@ -6,6 +6,7 @@ require "ISUI/ISPanel"
 require "QSF_Button"
 require "QSF_Theme"
 require "QSF_Rules"
+require "QSF_ClientState"
 
 QSF_Choice = ISPanel:derive("QSF_Choice")
 
@@ -23,7 +24,7 @@ local function QSF_height(count, headerHeight)
     return PAD + headerHeight + GAP + rows + GAP + BUTTON_HEIGHT + PAD
 end
 
-function QSF_Choice:new(x, y, width, height, def, key, target, onConfirm)
+function QSF_Choice:new(x, y, width, height, def, key, target, after)
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -31,14 +32,12 @@ function QSF_Choice:new(x, y, width, height, def, key, target, onConfirm)
     o.def = def
     o.questKey = key
     o.target = target
-    o.onConfirm = onConfirm
+    o.after = after
     o.pick = nil
     o.options = def.rewards.choice.options
     o.header = def.rewards.choice.label or getText("IGUI_QSF_ChooseReward")
 
-    o.backgroundColor = { r = 0.05, g = 0.05, b = 0.05, a = 0.95 }
-    o.borderColor = QSF_Theme.COL_FRAME
-    o.moveWithMouse = true
+    QSF_Theme.floating(o)
 
     o.headerHeight = getTextManager():getFontHeight(UIFont.Medium)
 
@@ -52,11 +51,8 @@ function QSF_Choice:createChildren()
 
     self.picks = {}
     for index, entry in ipairs(self.options) do
-        local title = QSF_Theme.itemName(entry.item)
-        if entry.count > 1 then title = title .. " x" .. entry.count end
-
         local button = QSF_Button:new(PAD, y, self.width - PAD * 2, OPTION_HEIGHT,
-            QSF_Theme.truncate(title, self.width - PAD * 2 - 24, UIFont.Small),
+            QSF_Theme.truncate(QSF_Theme.itemLabel(entry), self.width - PAD * 2 - 24, UIFont.Small),
             self, QSF_Choice.onPick)
         -- the ordinal is what travels to the server, so it is carried on the widget the
         -- same way the tab buttons carry theirs.
@@ -66,19 +62,10 @@ function QSF_Choice:createChildren()
         y = y + OPTION_HEIGHT + OPTION_GAP
     end
 
-    y = self.height - PAD - BUTTON_HEIGHT
-
-    self.cancel = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Cancel"), self, QSF_Choice.onCancel)
-    self.cancel:sizeToTitle(28)
-    self.cancel:setX(self.width - PAD - self.cancel:getWidth())
-    QSF_Theme.attach(self, self.cancel)
-
-    self.confirm = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Confirm"), self, QSF_Choice.onOk)
-    self.confirm:sizeToTitle(28)
-    self.confirm:setX(self.cancel:getX() - 6 - self.confirm:getWidth())
+    self.confirm, self.cancel = QSF_Theme.okCancel(self, self.height - PAD - BUTTON_HEIGHT, BUTTON_HEIGHT, PAD,
+        QSF_Choice.onOk, QSF_Choice.onCancel)
     -- nothing is picked yet, and a confirm with no pick is a refusal waiting to happen.
     self.confirm:setEnable(false)
-    QSF_Theme.attach(self, self.confirm)
 end
 
 function QSF_Choice:onPick(button)
@@ -92,17 +79,20 @@ function QSF_Choice:onPick(button)
     if self.confirm then self.confirm:setEnable(QSF_Rules.pickedReward(self.def, self.pick) ~= nil) end
 end
 
+-- the quest it was opened for, whatever has been selected since: a selection that moves
+-- while the picker is up must not pay out a different quest.
 function QSF_Choice:onOk()
     if not self.pick then return end
 
-    local target, callback, key, pick = self.target, self.onConfirm, self.questKey, self.pick
+    local target, after, key, pick = self.target, self.after, self.questKey, self.pick
     self:close()
 
-    if callback then callback(target, key, pick) end
+    QSF_ClientState.claim(key, pick)
+    if after then after(target) end
 end
 
--- the quest is still active and still complete, so the footer button goes back to reading
--- Turn In and nothing was spent.
+-- the quest is still active and still complete, so the button that opened this goes back
+-- to reading Turn In and nothing was spent.
 function QSF_Choice:onCancel()
     self:close()
 end
@@ -126,7 +116,7 @@ end
 -- centred on the screen the way the teleport prompt is. the target holds it as choiceModal
 -- until it closes: nothing under a picker stops being clickable, and a second press would
 -- otherwise stack a second one on the first.
-function QSF_Choice.show(def, key, target, onConfirm)
+function QSF_Choice.show(def, key, target, after)
     if target.choiceModal then return target.choiceModal end
 
     local choice = def and def.rewards and def.rewards.choice
@@ -137,14 +127,21 @@ function QSF_Choice.show(def, key, target, onConfirm)
 
     local x, y = QSF_Theme.centre(WIDTH, height)
 
-    local picker = QSF_Choice:new(x, y, WIDTH, height, def, key, target, onConfirm)
-    picker:initialise()
-    picker:instantiate()
-    picker:addToUIManager()
-    picker:bringToTop()
+    target.choiceModal = QSF_Theme.open(QSF_Choice:new(x, y, WIDTH, height, def, key, target, after))
+    return target.choiceModal
+end
 
-    target.choiceModal = picker
-    return picker
+-- handing a quest in, from whichever window. it goes straight to the server unless there
+-- is a reward to pick first, and then the picker sends it once one has been. after is the
+-- window's own, called with it when that happens. true when it has already gone.
+function QSF_Choice.turnIn(def, key, target, after)
+    if def.rewards and def.rewards.choice then
+        QSF_Choice.show(def, key, target, after)
+        return false
+    end
+
+    QSF_ClientState.claim(key)
+    return true
 end
 
 -- for a window that is closing with its picker still up. the picker is a top-level window,

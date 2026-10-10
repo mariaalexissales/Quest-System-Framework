@@ -12,6 +12,7 @@ QSF_ClientState.defs = QSF_ClientState.defs or {}
 QSF_ClientState.ordered = QSF_ClientState.ordered or {}
 QSF_ClientState.state = QSF_ClientState.state or {}
 QSF_ClientState.collect = QSF_ClientState.collect or {}
+QSF_ClientState.byGiver = QSF_ClientState.byGiver or {}
 QSF_ClientState.npcs = QSF_ClientState.npcs or {}
 QSF_ClientState.npcIds = QSF_ClientState.npcIds or {}
 QSF_ClientState.globalDefs = QSF_ClientState.globalDefs or {}
@@ -57,6 +58,17 @@ end
 handlers.defs = QSF_staged("quests", function(defs)
     QSF_ClientState.defs = defs
     QSF_ClientState.ordered = QSF_Rules.sorted(defs)
+
+    -- what each npc hands out, in the order the log would list it. the marker asks every
+    -- second for every npc, which is too often to go through every quest looking.
+    local byGiver = {}
+    for _, def in ipairs(QSF_ClientState.ordered) do
+        if def.giver then
+            byGiver[def.giver] = byGiver[def.giver] or {}
+            table.insert(byGiver[def.giver], def)
+        end
+    end
+    QSF_ClientState.byGiver = byGiver
 end)
 
 handlers.gdefs = QSF_staged("quests", function(defs)
@@ -153,7 +165,6 @@ function handlers.toast(args)
     if QSF_Notice then QSF_Notice.show(args) end
 end
 
-
 function QSF_ClientState.onCommand(module, command, args)
     if module ~= QSF.MODULE then return end
 
@@ -172,12 +183,24 @@ function QSF_ClientState.counts()
     return QSF_ClientState.collect
 end
 
-function QSF_ClientState.accept(key)
-    QSF_Net.toServer("accept", { key = key })
+-- what a quest is to this player right now. the log, the conversation and the marker all
+-- ask it here, of the same records and the same counts.
+function QSF_ClientState.stateOf(def, player)
+    return QSF_Rules.questState(def, QSF_ClientState.state[def.key], player,
+        QSF_ClientState.state, QSF_ClientState.collect)
 end
 
-function QSF_ClientState.abandon(key)
-    QSF_Net.toServer("abandon", { key = key })
+-- what one npc hands out, in the order the log would list it.
+function QSF_ClientState.questsOf(npcKey)
+    return QSF_ClientState.byGiver[npcKey] or {}
+end
+
+-- everything a window asks for with a key and nothing else. whether it may is the server's
+-- to decide, and the answer comes back as a delta or a refusal.
+for _, command in ipairs({ "accept", "abandon", "teleport", "globalGive", "globalStart", "globalEnd" }) do
+    QSF_ClientState[command] = function(key)
+        QSF_Net.toServer(command, { key = key })
+    end
 end
 
 -- pick is the reward option the player chose, and is absent on quests without a pool and
@@ -186,24 +209,8 @@ function QSF_ClientState.claim(key, pick)
     QSF_Net.toServer("claim", { key = key, pick = pick })
 end
 
-function QSF_ClientState.teleport(key)
-    QSF_Net.toServer("teleport", { key = key })
-end
-
 function QSF_ClientState.reload()
     QSF_Net.toServer("reload", {})
-end
-
-function QSF_ClientState.globalGive(key)
-    QSF_Net.toServer("globalGive", { key = key })
-end
-
-function QSF_ClientState.globalStart(key)
-    QSF_Net.toServer("globalStart", { key = key })
-end
-
-function QSF_ClientState.globalEnd(key)
-    QSF_Net.toServer("globalEnd", { key = key })
 end
 
 Events.OnServerCommand.Add(QSF_ClientState.onCommand)

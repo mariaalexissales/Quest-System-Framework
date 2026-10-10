@@ -46,9 +46,7 @@ function QSF_NpcPlace:new(x, y, playerNum, tileX, tileY, tileZ)
     o.problem = nil
     o.rowY = {}
 
-    o.backgroundColor = { r = 0.05, g = 0.05, b = 0.05, a = 0.95 }
-    o.borderColor = QSF_Theme.COL_FRAME
-    o.moveWithMouse = true
+    QSF_Theme.floating(o)
 
     return o
 end
@@ -104,17 +102,8 @@ function QSF_NpcPlace:createChildren()
 
     self.greeting = QSF_Theme.attach(self, ISTextEntryBox:new("", x, nextRow("Greeting"), width, ROW))
 
-    local buttonY = self.height - PAD - BUTTON_HEIGHT
-
-    self.cancel = QSF_Button:new(0, buttonY, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Cancel"), self, QSF_NpcPlace.onCancel)
-    self.cancel:sizeToTitle(28)
-    self.cancel:setX(self.width - PAD - self.cancel:getWidth())
-    QSF_Theme.attach(self, self.cancel)
-
-    self.confirm = QSF_Button:new(0, buttonY, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Confirm"), self, QSF_NpcPlace.onOk)
-    self.confirm:sizeToTitle(28)
-    self.confirm:setX(self.cancel:getX() - 6 - self.confirm:getWidth())
-    QSF_Theme.attach(self, self.confirm)
+    self.confirm, self.cancel = QSF_Theme.okCancel(self, self.height - PAD - BUTTON_HEIGHT, BUTTON_HEIGHT, PAD,
+        QSF_NpcPlace.onOk, QSF_NpcPlace.onCancel)
 end
 
 -- anything that was wrong may not be any more.
@@ -219,13 +208,10 @@ function QSF_NpcPlace.show(playerNum, tileX, tileY, tileZ)
 
     -- the height is worked out by new(), so it is centred once there is one to centre.
     local form = QSF_NpcPlace:new(0, 0, playerNum, tileX, tileY, tileZ)
-    form:initialise()
-    form:instantiate()
     local x, y = QSF_Theme.centre(form:getWidth(), form:getHeight())
     form:setX(x)
     form:setY(y)
-    form:addToUIManager()
-    form:bringToTop()
+    QSF_Theme.open(form)
 
     QSF_NpcPlace.instance = form
     return form
