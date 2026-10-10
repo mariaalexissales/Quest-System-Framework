@@ -35,7 +35,8 @@ function QSF_Choice:new(x, y, width, height, def, key, target, after)
     o.after = after
     o.pick = nil
     o.options = def.rewards.choice.options
-    o.header = def.rewards.choice.label or getText("IGUI_QSF_ChooseReward")
+    -- the same words the quest's details put over the same list.
+    o.header = def.rewards.choice.label or getText("IGUI_QSF_ChooseOne")
 
     QSF_Theme.floating(o)
 

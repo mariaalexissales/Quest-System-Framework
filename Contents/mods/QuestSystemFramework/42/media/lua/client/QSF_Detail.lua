@@ -324,12 +324,13 @@ function QSF_Detail:addObjectives(def, rec, where, y)
     return y + GAP
 end
 
--- a global quest pays one of two things, and both are worth knowing going in.
+-- a global quest pays one of two things, and both are worth knowing going in: the rewards
+-- for finishing it, and what taking part is worth if it ends short of that.
 function QSF_Detail:addRewards(def, y)
     local after = self:addPayout(def.rewards, "IGUI_QSF_Rewards", y)
 
     if self.global and def.consolation then
-        after = self:addPayout(def.consolation, "IGUI_QSF_Global_Consolation", after > y and after + GAP or after)
+        after = self:addPayout(def.consolation, "IGUI_QSF_Participation", after > y and after + GAP or after)
     end
 
     return after

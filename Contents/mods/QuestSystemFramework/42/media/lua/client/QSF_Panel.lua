@@ -183,7 +183,8 @@ function QSF_Panel:onContribute()
     self:ask("giveModal", getText("IGUI_QSF_ContributeConfirm", tostring(total)), QSF_ClientState.globalGive)
 end
 
--- starting is one click. ending pays everybody the consolation, so that one asks.
+-- starting is one click. ending pays everybody what taking part is worth and no more, so
+-- that one asks.
 function QSF_Panel:onRun()
     local def, run = self:globalSelection()
     if not def then return end
