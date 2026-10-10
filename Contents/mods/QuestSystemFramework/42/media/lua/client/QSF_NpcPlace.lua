@@ -9,9 +9,8 @@ require "ISUI/ISTickBox"
 require "QSF_Button"
 require "QSF_Theme"
 require "QSF_Net"
+require "QSF_Schema"
 require "QSF_ClientState"
-
-QSF = QSF or {}
 
 -- the admin's form for standing a new npc on a tile. everything it sends is checked again
 -- by the server, which is the one that writes the file.
@@ -24,9 +23,6 @@ local ROW = 24
 local LABEL = 76
 local BUTTON_HEIGHT = 24
 local SKINS = 5
-
--- the same pattern the schema holds a key to.
-local VALID_KEY = "^[%w_%.%-]+$"
 
 local ROWS = { "Key", "Name", "Outfit", "Female", "Skin", "Greeting" }
 
@@ -145,7 +141,8 @@ function QSF_NpcPlace:collect()
     local key = QSF_trim(self.key:getText())
     if key == "" then key = QSF_keyFromName(name) end
 
-    if key == "" or not key:match(VALID_KEY) then return nil, "IGUI_QSF_Place_BadKey" end
+    -- the same test the server will hold it to.
+    if not QSF_Schema.validKey(key) then return nil, "IGUI_QSF_Place_BadKey" end
     if QSF_ClientState.npcs[key] then return nil, "IGUI_QSF_Place_KeyTaken" end
 
     local female = self.female:isSelected(1)

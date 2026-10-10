@@ -15,6 +15,32 @@ local MAX_CHOICE_OPTIONS = 8
 local FALLBACK_OUTFIT = "Generic01"
 local FACINGS = { N = true, NE = true, E = true, SE = true, S = true, SW = true, W = true, NW = true }
 
+-- text somebody actually wrote, or nil.
+local function QSF_written(value)
+    if type(value) == "string" and value ~= "" then return value end
+    return nil
+end
+
+-- the form an admin places an npc with holds a key to the same thing.
+function QSF_Schema.validKey(key)
+    return type(key) == "string" and key:match(VALID_KEY) ~= nil
+end
+
+-- who an entry is. what is its name to whoever wrote the file, and prefix goes in front of
+-- its key in everything said about it afterwards. returns that, or nil and the reason.
+local function QSF_identify(raw, sourceFile, what, prefix)
+    if type(raw) ~= "table" then
+        return nil, { (sourceFile or "?") .. ": " .. what .. " entry is not an object" }
+    end
+
+    if not QSF_Schema.validKey(raw.key) then
+        return nil, { (sourceFile or "?") .. ": every " .. what
+            .. " needs a key of letters, digits, dot, dash or underscore" }
+    end
+
+    return prefix .. raw.key
+end
+
 -- a lookup that throws means the engine is not ready yet, which is "cannot say" rather
 -- than "invalid" - otherwise an early load would silently delete every objective.
 local function QSF_itemExists(fullType)
@@ -205,6 +231,36 @@ local function QSF_normaliseObjective(raw, index, questLocation, errors, key)
     return obj
 end
 
+-- an object of perk to number, which is both what a quest asks for and what it pays.
+local SKILLS = {
+    field = "prereqs.skills", holds = "level", whole = true,
+    -- an admin writing Carpentry has no way to guess it is Woodwork.
+    unknown = "unknown perk %s (Carpentry is Woodwork, Foraging is PlantScavenging, First Aid is Doctor)",
+}
+local XP = { field = "rewards.xp", holds = "amount", unknown = "unknown perk in rewards.xp: %s" }
+
+-- nil when it is not an object at all, and otherwise whatever in it could be read.
+local function QSF_normalisePerks(raw, errors, key, kind)
+    if type(raw) ~= "table" then
+        errors[#errors + 1] = key .. ": " .. kind.field .. " must be an object of perk to " .. kind.holds
+        return nil
+    end
+
+    local out = {}
+    for perkName, value in pairs(raw) do
+        local perk, unavailable = QSF_perkFromName(perkName)
+        if not perk and not unavailable then
+            errors[#errors + 1] = key .. ": " .. string.format(kind.unknown, tostring(perkName))
+        elseif type(value) ~= "number" then
+            errors[#errors + 1] = key .. ": " .. kind.field .. "." .. tostring(perkName) .. " must be a number"
+        else
+            out[perkName] = kind.whole and math.floor(value) or value
+        end
+    end
+
+    return out
+end
+
 local function QSF_normalisePrereqs(raw, errors, key)
     if raw == nil then return {} end
     if type(raw) ~= "table" then
@@ -229,42 +285,20 @@ local function QSF_normalisePrereqs(raw, errors, key)
         end
     end
 
-    if raw.skills ~= nil then
-        if type(raw.skills) ~= "table" then
-            errors[#errors + 1] = key .. ": prereqs.skills must be an object of perk to level"
-        else
-            out.skills = {}
-            for perkName, level in pairs(raw.skills) do
-                local perk, unavailable = QSF_perkFromName(perkName)
-                if not perk and not unavailable then
-                    -- an admin writing Carpentry has no way to guess it is Woodwork.
-                    errors[#errors + 1] = key .. ": unknown perk " .. tostring(perkName)
-                        .. " (Carpentry is Woodwork, Foraging is PlantScavenging, First Aid is Doctor)"
-                elseif type(level) ~= "number" then
-                    errors[#errors + 1] = key .. ": prereqs.skills." .. tostring(perkName) .. " must be a number"
-                else
-                    out.skills[perkName] = math.floor(level)
-                end
-            end
+    if raw.skills ~= nil then out.skills = QSF_normalisePerks(raw.skills, errors, key, SKILLS) end
+
+    for _, field in ipairs({ "kills", "daysSurvived" }) do
+        if raw[field] ~= nil then
+            local n = tonumber(raw[field])
+            if n then out[field] = math.floor(n)
+            else errors[#errors + 1] = key .. ": prereqs." .. field .. " must be a number" end
         end
-    end
-
-    if raw.kills ~= nil then
-        local n = tonumber(raw.kills)
-        if n then out.kills = math.floor(n)
-        else errors[#errors + 1] = key .. ": prereqs.kills must be a number" end
-    end
-
-    if raw.daysSurvived ~= nil then
-        local n = tonumber(raw.daysSurvived)
-        if n then out.daysSurvived = math.floor(n)
-        else errors[#errors + 1] = key .. ": prereqs.daysSurvived must be a number" end
     end
 
     return out
 end
 
--- shared by rewards.items and by every option in a reward choice, so a pool entry is held
+-- shared by rewards.items and by every option in a reward pool, so a pool entry is held
 -- to exactly the same standard as a flat reward. returns nil on anything unusable.
 local function QSF_normaliseRewardItem(entry, where, errors)
     if type(entry) ~= "table" or type(entry.item) ~= "string" then
@@ -283,41 +317,40 @@ local function QSF_normaliseRewardItem(entry, where, errors)
     return { item = entry.item, count = count }
 end
 
--- a pool the player picks one of at turn-in. a bad option is dropped and the rest still
--- stand; losing every one of them drops the choice rather than leaving an empty pool for
--- the picker to open on.
-local function QSF_normaliseChoice(raw, errors, key)
+-- a pool of rewards under rewards[field]. choice is the one the player picks from at
+-- turn-in. a bad option is dropped and the rest still stand; losing every one of them drops
+-- the pool rather than leaving an empty one for the picker to open on.
+local function QSF_normalisePool(raw, errors, key, field)
     if raw == nil then return nil end
 
+    local name = key .. ": rewards." .. field
+
     if type(raw) ~= "table" then
-        errors[#errors + 1] = key .. ": rewards.choice must be an object with an options list"
+        errors[#errors + 1] = name .. " must be an object with an options list"
         return nil
     end
 
     if type(raw.options) ~= "table" or #raw.options == 0 then
-        errors[#errors + 1] = key .. ": rewards.choice needs a non-empty options list"
+        errors[#errors + 1] = name .. " needs a non-empty options list"
         return nil
     end
 
     local options = {}
     for i, entry in ipairs(raw.options) do
-        local option = QSF_normaliseRewardItem(entry, key .. ": rewards.choice option " .. i, errors)
+        local option = QSF_normaliseRewardItem(entry, name .. " option " .. i, errors)
         if option then options[#options + 1] = option end
     end
 
     if #options == 0 then
-        errors[#errors + 1] = key .. ": rewards.choice had no usable options, so it was dropped"
+        errors[#errors + 1] = name .. " had no usable options, so it was dropped"
         return nil
     end
 
-    if #options > MAX_CHOICE_OPTIONS then
+    if field == "choice" and #options > MAX_CHOICE_OPTIONS then
         errors[#errors + 1] = key .. ": more than " .. MAX_CHOICE_OPTIONS .. " reward options makes an unwieldy picker"
     end
 
-    return {
-        label = (type(raw.label) == "string" and raw.label ~= "") and raw.label or nil,
-        options = options,
-    }
+    return { label = QSF_written(raw.label), options = options }
 end
 
 local function QSF_normaliseRewards(raw, errors, key)
@@ -334,25 +367,9 @@ local function QSF_normaliseRewards(raw, errors, key)
         if item then out.items[#out.items + 1] = item end
     end
 
-    if raw.xp ~= nil then
-        if type(raw.xp) ~= "table" then
-            errors[#errors + 1] = key .. ": rewards.xp must be an object of perk to amount"
-        else
-            out.xp = {}
-            for perkName, amount in pairs(raw.xp) do
-                local perk, unavailable = QSF_perkFromName(perkName)
-                if not perk and not unavailable then
-                    errors[#errors + 1] = key .. ": unknown perk in rewards.xp: " .. tostring(perkName)
-                elseif type(amount) ~= "number" then
-                    errors[#errors + 1] = key .. ": rewards.xp." .. tostring(perkName) .. " must be a number"
-                else
-                    out.xp[perkName] = amount
-                end
-            end
-        end
-    end
+    if raw.xp ~= nil then out.xp = QSF_normalisePerks(raw.xp, errors, key, XP) end
 
-    out.choice = QSF_normaliseChoice(raw.choice, errors, key)
+    out.choice = QSF_normalisePool(raw.choice, errors, key, "choice")
 
     return out
 end
@@ -386,7 +403,7 @@ local function QSF_normaliseDialogue(raw, errors, key)
     local out = {}
     for _, field in ipairs({ "offer", "progress", "complete" }) do
         local line = raw[field]
-        if type(line) == "string" and line ~= "" then
+        if QSF_written(line) then
             out[field] = line
             QSF_checkPlaceholders(line, key, errors)
         elseif line ~= nil then
@@ -397,24 +414,20 @@ local function QSF_normaliseDialogue(raw, errors, key)
     return out
 end
 
--- returns def, errors. def is nil when the quest could not be salvaged at all.
-function QSF_Schema.normalise(raw, sourceFile)
-    local errors = {}
-
-    if type(raw) ~= "table" then
-        return nil, { (sourceFile or "?") .. ": quest entry is not an object" }
-    end
-
-    local key = raw.key
-    if type(key) ~= "string" or not key:match(VALID_KEY) then
-        return nil, { (sourceFile or "?") .. ": every quest needs a key of letters, digits, dot, dash or underscore" }
-    end
+-- what a quest and a global quest have in common: who it is, where it is and what it asks
+-- for. returns the start of a def, its errors so far and the name they are filed under, or
+-- nil and why there was nothing to salvage.
+local function QSF_normaliseBase(raw, sourceFile, what, prefix)
+    local where, fatal = QSF_identify(raw, sourceFile, what, prefix)
+    if not where then return nil, fatal end
 
     if type(raw.title) ~= "string" or raw.title == "" then
-        return nil, { key .. ": needs a title" }
+        return nil, { where .. ": needs a title" }
     end
 
-    local questLocation, locErr = QSF_normaliseLocation(raw.location, key)
+    local errors = {}
+
+    local questLocation, locErr = QSF_normaliseLocation(raw.location, where)
     if locErr then
         errors[#errors + 1] = locErr
         questLocation = nil
@@ -422,22 +435,41 @@ function QSF_Schema.normalise(raw, sourceFile)
     if questLocation == false then questLocation = nil end
 
     if type(raw.objectives) ~= "table" or #raw.objectives == 0 then
-        return nil, { key .. ": needs at least one objective" }
+        return nil, { where .. ": needs at least one objective" }
     end
 
     local objectives = {}
     for i, rawObj in ipairs(raw.objectives) do
-        local obj = QSF_normaliseObjective(rawObj, i, questLocation, errors, key)
-        -- dropping one would renumber every later ordinal, and progress is keyed on those.
+        local obj = QSF_normaliseObjective(rawObj, i, questLocation, errors, where)
+        -- dropping one would renumber every later ordinal, and progress is keyed on those,
+        -- a player's own and the shared counters alike.
         if not obj then
             return nil, errors
         end
         objectives[i] = obj
     end
 
+    local def = {
+        key = raw.key,
+        title = raw.title,
+        description = type(raw.description) == "string" and raw.description or "",
+        order = tonumber(raw.order) or 100,
+        location = questLocation,
+        objectives = objectives,
+        source = sourceFile,
+    }
+
+    return def, errors, where
+end
+
+-- returns def, errors. def is nil when the quest could not be salvaged at all.
+function QSF_Schema.normalise(raw, sourceFile)
+    local def, errors, key = QSF_normaliseBase(raw, sourceFile, "quest", "")
+    if not def then return nil, errors end
+
     local collectTypes = 0
     local consumes = false
-    for _, obj in ipairs(objectives) do
+    for _, obj in ipairs(def.objectives) do
         if obj.type == "collect" then
             collectTypes = collectTypes + 1
             if obj.consume then consumes = true end
@@ -447,22 +479,13 @@ function QSF_Schema.normalise(raw, sourceFile)
         errors[#errors + 1] = key .. ": more than " .. MAX_COLLECT_TYPES .. " collect objectives will poll slowly"
     end
 
-    local def = {
-        key = key,
-        title = raw.title,
-        description = type(raw.description) == "string" and raw.description or "",
-        order = tonumber(raw.order) or 100,
-        location = questLocation,
-        teleport = QSF_normaliseTeleport(raw.teleport, key, errors),
-        prereqs = QSF_normalisePrereqs(raw.prereqs, errors, key),
-        objectives = objectives,
-        rewards = QSF_normaliseRewards(raw.rewards, errors, key),
-        repeatable = QSF_normaliseRepeatable(raw.repeatable, errors, key),
-        autoComplete = raw.autoComplete ~= false,
-        giver = (type(raw.giver) == "string" and raw.giver ~= "") and raw.giver or nil,
-        dialogue = QSF_normaliseDialogue(raw.dialogue, errors, key),
-        source = sourceFile,
-    }
+    def.teleport = QSF_normaliseTeleport(raw.teleport, key, errors)
+    def.prereqs = QSF_normalisePrereqs(raw.prereqs, errors, key)
+    def.rewards = QSF_normaliseRewards(raw.rewards, errors, key)
+    def.repeatable = QSF_normaliseRepeatable(raw.repeatable, errors, key)
+    def.autoComplete = raw.autoComplete ~= false
+    def.giver = QSF_written(raw.giver)
+    def.dialogue = QSF_normaliseDialogue(raw.dialogue, errors, key)
 
     if raw.giver ~= nil and not def.giver then
         errors[#errors + 1] = key .. ": giver must be the key of an npc"
@@ -508,49 +531,15 @@ end
 
 -- a quest the whole server works on. returns def, errors, the same as normalise.
 function QSF_Schema.normaliseGlobal(raw, sourceFile)
-    local errors = {}
+    local def, errors, where = QSF_normaliseBase(raw, sourceFile, "global quest", "global ")
+    if not def then return nil, errors end
 
-    if type(raw) ~= "table" then
-        return nil, { (sourceFile or "?") .. ": global quest entry is not an object" }
-    end
-
-    local key = raw.key
-    if type(key) ~= "string" or not key:match(VALID_KEY) then
-        return nil, { (sourceFile or "?") .. ": every global quest needs a key of letters, digits, dot, dash or underscore" }
-    end
-
-    local where = "global " .. key
-
-    if type(raw.title) ~= "string" or raw.title == "" then
-        return nil, { where .. ": needs a title" }
-    end
-
-    local questLocation, locErr = QSF_normaliseLocation(raw.location, where)
-    if locErr then
-        errors[#errors + 1] = locErr
-        questLocation = nil
-    end
-    if questLocation == false then questLocation = nil end
-
-    if type(raw.objectives) ~= "table" or #raw.objectives == 0 then
-        return nil, { where .. ": needs at least one objective" }
-    end
-
-    local objectives = {}
-    for i, rawObj in ipairs(raw.objectives) do
-        local obj = QSF_normaliseObjective(rawObj, i, questLocation, errors, where)
-        -- the shared counters are by position as well.
-        if not obj then
-            return nil, errors
-        end
-
-        -- handed over from the log, wherever the player is, and always for keeps.
+    -- handed over from the log, wherever the player is, and always for keeps.
+    for _, obj in ipairs(def.objectives) do
         if obj.type == "collect" then
             obj.location = nil
             obj.consume = true
         end
-
-        objectives[i] = obj
     end
 
     local start = raw.start
@@ -569,21 +558,12 @@ function QSF_Schema.normaliseGlobal(raw, sourceFile)
         duration = 0
     end
 
-    local def = {
-        key = key,
-        title = raw.title,
-        description = type(raw.description) == "string" and raw.description or "",
-        order = tonumber(raw.order) or 100,
-        location = questLocation,
-        objectives = objectives,
-        rewards = QSF_normalisePayout(raw.rewards, errors, where),
-        consolation = raw.consolation ~= nil
-            and QSF_normalisePayout(raw.consolation, errors, where .. " consolation") or nil,
-        start = start,
-        durationHours = duration,
-        minContribution = math.max(1, math.floor(tonumber(raw.minContribution) or 1)),
-        source = sourceFile,
-    }
+    def.rewards = QSF_normalisePayout(raw.rewards, errors, where)
+    def.consolation = raw.consolation ~= nil
+        and QSF_normalisePayout(raw.consolation, errors, where .. " consolation") or nil
+    def.start = start
+    def.durationHours = duration
+    def.minContribution = math.max(1, math.floor(tonumber(raw.minContribution) or 1))
 
     QSF_checkPlaceholders(def.description, where, errors)
 
@@ -593,27 +573,18 @@ end
 
 -- returns npc, errors. npc is nil when there is no telling who it is or where it stands.
 function QSF_Schema.normaliseNpc(raw, sourceFile)
-    local errors = {}
-
-    if type(raw) ~= "table" then
-        return nil, { (sourceFile or "?") .. ": npc entry is not an object" }
-    end
-
-    local key = raw.key
-    if type(key) ~= "string" or not key:match(VALID_KEY) then
-        return nil, { (sourceFile or "?") .. ": every npc needs a key of letters, digits, dot, dash or underscore" }
-    end
-
-    local where = "npc " .. key
+    local where, fatal = QSF_identify(raw, sourceFile, "npc", "npc ")
+    if not where then return nil, fatal end
 
     if type(raw.x) ~= "number" or type(raw.y) ~= "number" then
         return nil, { where .. ": needs numeric x and y" }
     end
 
+    local errors = {}
     local female = raw.female == true
 
-    local outfit = raw.outfit
-    if type(outfit) ~= "string" or outfit == "" then
+    local outfit = QSF_written(raw.outfit)
+    if not outfit then
         outfit = FALLBACK_OUTFIT
     elseif not QSF_outfitExists(outfit, female) then
         errors[#errors + 1] = where .. ": there is no " .. (female and "female" or "male")
@@ -636,8 +607,8 @@ function QSF_Schema.normaliseNpc(raw, sourceFile)
     QSF_checkPlaceholders(raw.greeting, where, errors)
 
     return {
-        key = key,
-        name = (type(raw.name) == "string" and raw.name ~= "") and raw.name or key,
+        key = raw.key,
+        name = QSF_written(raw.name) or raw.key,
         x = math.floor(raw.x),
         y = math.floor(raw.y),
         z = math.floor(tonumber(raw.z) or 0),
@@ -646,7 +617,7 @@ function QSF_Schema.normaliseNpc(raw, sourceFile)
         skin = skin,
         -- south-east is toward the camera, so a face rather than the back of a head.
         facing = facing or "SE",
-        greeting = (type(raw.greeting) == "string" and raw.greeting ~= "") and raw.greeting or nil,
+        greeting = QSF_written(raw.greeting),
         source = sourceFile,
     }, errors
 end
