@@ -108,12 +108,12 @@ function QSF_Dialogue:createChildren()
     local y = self:footerY()
 
     self.back = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Goodbye"), self, QSF_Dialogue.onBack)
-    self.back:sizeToWidest(28, "IGUI_QSF_Goodbye", "IGUI_QSF_Back")
+    self.back:sizeToWidest(28, getText("IGUI_QSF_Goodbye"), getText("IGUI_QSF_Back"))
     self.back:setX(self.width - PAD - self.back:getWidth())
     QSF_Theme.attach(self, self.back)
 
     self.primary = QSF_Button:new(0, y, 10, BUTTON_HEIGHT, getText("IGUI_QSF_Accept"), self, QSF_Dialogue.onPrimary)
-    self.primary:sizeToWidest(28, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn")
+    self.primary:sizeToWidest(28, getText("IGUI_QSF_Accept"), getText("IGUI_QSF_TurnIn"))
     self.primary:setX(self.back:getX() - 6 - self.primary:getWidth())
     QSF_Theme.attach(self, self.primary)
 

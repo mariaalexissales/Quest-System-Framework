@@ -71,12 +71,11 @@ function QSF_Panel:bands()
     return tabY, listY, footerY, listW
 end
 
--- one along the footer. the titles are translation keys: the first is what it opens
--- reading, and one that swaps between several is as wide as the widest of them, so the
--- strip never reflows mid-use.
-function QSF_Panel:footerButton(x, y, onClick, title, ...)
-    local button = QSF_Button:new(x, y + 2, 90, FOOTER_HEIGHT - 6, getText(title), self, onClick)
-    if select("#", ...) > 0 then button:sizeToWidest(24, title, ...) end
+-- one along the footer. the first label is what it opens reading, and one that swaps
+-- between several is as wide as the widest of them, so the strip never reflows mid-use.
+function QSF_Panel:footerButton(x, y, onClick, label, ...)
+    local button = QSF_Button:new(x, y + 2, 90, FOOTER_HEIGHT - 6, label, self, onClick)
+    if select("#", ...) > 0 then button:sizeToWidest(24, label, ...) end
     return button
 end
 
@@ -112,22 +111,23 @@ function QSF_Panel:createChildren()
         QSF_Detail:new(PAD + listW + GAP, listY, self.width - listW - PAD * 2 - GAP, listHeight))
 
     self.action = QSF_Theme.attach(self, self:footerButton(PAD, footerY, QSF_Panel.onAction,
-        "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon", "IGUI_QSF_Contribute"))
+        getText("IGUI_QSF_Accept"), getText("IGUI_QSF_TurnIn"), getText("IGUI_QSF_Abandon"),
+        getText("IGUI_QSF_Contribute")))
 
     -- beside the action button, which keeps a fixed x and a fixed width, so its right edge
-    -- is a stable anchor.
+    -- is a stable anchor. measured with as long a wait as a cooldown is likely to show.
     self.teleport = QSF_Theme.attach(self, self:footerButton(self.action:getRight() + 4, footerY,
-        QSF_Panel.onTeleport, "IGUI_QSF_Teleport", "IGUI_QSF_TeleportCooldown"))
+        QSF_Panel.onTeleport, getText("IGUI_QSF_Teleport"), getText("IGUI_QSF_TeleportCooldown", "000")))
 
     local right = { anchorLeft = false, anchorRight = true }
 
     self.reload = QSF_Theme.attach(self, self:footerButton(self.width - PAD - 90, footerY,
-        QSF_Panel.onReload, "IGUI_QSF_Reload"), right)
+        QSF_Panel.onReload, getText("IGUI_QSF_Reload")), right)
 
     -- beside Reload and anchored the same way. one button, since a global quest is only
     -- ever waiting to be started or running to be ended.
     self.globalRun = QSF_Theme.attach(self, self:footerButton(self.width - PAD - 90 - 4 - 90, footerY,
-        QSF_Panel.onRun, "IGUI_QSF_GlobalStart"), right)
+        QSF_Panel.onRun, getText("IGUI_QSF_GlobalStart")), right)
 
     self:refresh()
 end
