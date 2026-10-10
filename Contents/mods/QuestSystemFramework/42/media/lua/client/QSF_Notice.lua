@@ -15,6 +15,8 @@ local REFUSED = {
     KeyTaken = "IGUI_QSF_Place_KeyTaken",
     BadNpc = "IGUI_QSF_Refused_BadNpc",
     WriteFailed = "IGUI_QSF_Refused_WriteFailed",
+    NotRunning = "IGUI_QSF_Refused_NotRunning",
+    NothingToGive = "IGUI_QSF_Refused_NothingToGive",
 }
 
 -- the window was a click behind, and what was asked for has already happened. telling a
@@ -44,6 +46,20 @@ local function QSF_wording(args)
     if args.kind == "completed" then return getText("IGUI_QSF_Notice_Completed", title), true end
     if args.kind == "reloaded" then return getText("IGUI_QSF_Notice_Reloaded"), true end
     if args.kind == "refused" then return QSF_refusal(args, def), false end
+
+    -- a global quest's title comes with the news. by the time somebody is paid for one it
+    -- may have been taken out of the files, and their list with it.
+    local global = tostring(args.title)
+
+    if args.kind == "globalStarted" then return getText("IGUI_QSF_Notice_GlobalStarted", global), true end
+    if args.kind == "globalCompleted" then return getText("IGUI_QSF_Notice_GlobalCompleted", global), true end
+    if args.kind == "globalExpired" then return getText("IGUI_QSF_Notice_GlobalExpired", global), false end
+    if args.kind == "globalGave" then return getText("IGUI_QSF_Notice_GlobalGave", tostring(args.count)), true end
+
+    if args.kind == "globalPaid" then
+        local key = args.outcome == "completed" and "IGUI_QSF_Notice_GlobalPaid" or "IGUI_QSF_Notice_GlobalConsoled"
+        return getText(key, global), true
+    end
 
     return nil
 end

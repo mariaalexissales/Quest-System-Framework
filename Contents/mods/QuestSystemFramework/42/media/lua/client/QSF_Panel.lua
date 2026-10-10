@@ -86,6 +86,12 @@ function QSF_Panel:createChildren()
     self.tabDone.tab = "done"
     QSF_Theme.attach(self, self.tabDone)
 
+    self.tabGlobal = QSF_Button:new(self.tabDone:getRight() + 4, tabY, 10, TAB_HEIGHT,
+        getText("IGUI_QSF_TabGlobal"), self, QSF_Panel.onTab)
+    self.tabGlobal:sizeToTitle(28)
+    self.tabGlobal.tab = "global"
+    QSF_Theme.attach(self, self.tabGlobal)
+
     local listHeight = footerY - listY - GAP - 2
 
     self.list = NIVirtualScrollView:new(PAD + 1, listY + 1, listW - 2, listHeight)
@@ -111,7 +117,7 @@ function QSF_Panel:createChildren()
         QSF_Detail:new(PAD + listW + GAP, listY, self.width - listW - PAD * 2 - GAP, listHeight))
 
     self.action = QSF_Button:new(PAD, footerY + 2, 10, FOOTER_HEIGHT - 6, getText("IGUI_QSF_Accept"), self, QSF_Panel.onAction)
-    self.action:sizeToWidest(24, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon")
+    self.action:sizeToWidest(24, "IGUI_QSF_Accept", "IGUI_QSF_TurnIn", "IGUI_QSF_Abandon", "IGUI_QSF_Contribute")
     QSF_Theme.attach(self, self.action)
 
     -- beside the action button, which keeps a fixed x and a fixed width, so its right edge
@@ -125,6 +131,12 @@ function QSF_Panel:createChildren()
         getText("IGUI_QSF_Reload"), self, QSF_Panel.onReload)
     QSF_Theme.attach(self, self.reload, { anchorLeft = false, anchorRight = true })
 
+    -- beside Reload and anchored the same way. one button, since a global quest is only
+    -- ever waiting to be started or running to be ended.
+    self.globalRun = QSF_Button:new(self.width - PAD - 90 - 4 - 90, footerY + 2, 90, FOOTER_HEIGHT - 6,
+        getText("IGUI_QSF_GlobalStart"), self, QSF_Panel.onRun)
+    QSF_Theme.attach(self, self.globalRun, { anchorLeft = false, anchorRight = true })
+
     self:refresh()
 end
 
@@ -134,13 +146,75 @@ function QSF_Panel:onTab(button)
     self:refresh()
 end
 
+function QSF_Panel:isGlobal()
+    return self.tab == "global"
+end
+
 function QSF_Panel:select(key)
     self.selected = key
-    if self.detail then self.detail:setKey(key) end
+    if self.detail then self.detail:setKey(key, self:isGlobal()) end
+end
+
+-- the selected global quest and the server's run of it, or nothing on any other tab.
+function QSF_Panel:globalSelection()
+    if not self:isGlobal() or not self.selected then return nil end
+
+    local def = QSF_ClientState.globalDefs[self.selected]
+    if not def then return nil end
+
+    return def, QSF_ClientState.global[self.selected]
+end
+
+-- handing over cannot be walked back any more than a teleport can, so it asks first, and
+-- says how many. the key travels with the modal for the same reason the teleport's does.
+function QSF_Panel:onContribute()
+    local def, run = self:globalSelection()
+    if not def or self.giveModal then return end
+
+    local total = QSF_Rules.givable(def, run, QSF_ClientState.counts())
+    if total == 0 then return end
+
+    self.giveModal = QSF_Theme.confirm(getText("IGUI_QSF_ContributeConfirm", tostring(total)), self,
+        QSF_Panel.onConfirmContribute, self.playerNum, self.selected)
+end
+
+function QSF_Panel:onConfirmContribute(button, key)
+    self.giveModal = nil
+
+    if button.internal ~= "YES" or not key then return end
+    QSF_ClientState.globalGive(key)
+end
+
+-- starting is one click. ending pays everybody the consolation, so that one asks.
+function QSF_Panel:onRun()
+    local def, run = self:globalSelection()
+    if not def then return end
+
+    if not run or run.status ~= "active" then
+        QSF_ClientState.globalStart(self.selected)
+        return
+    end
+
+    if self.endModal then return end
+
+    self.endModal = QSF_Theme.confirm(getText("IGUI_QSF_GlobalEndConfirm"), self,
+        QSF_Panel.onConfirmEnd, self.playerNum, self.selected)
+end
+
+function QSF_Panel:onConfirmEnd(button, key)
+    self.endModal = nil
+
+    if button.internal ~= "YES" or not key then return end
+    QSF_ClientState.globalEnd(key)
 end
 
 function QSF_Panel:onAction()
     if not self.selected then return end
+
+    if self:isGlobal() then
+        self:onContribute()
+        return
+    end
 
     local def = QSF_ClientState.defs[self.selected]
     if not def then return end
@@ -206,7 +280,50 @@ function QSF_Panel:stateOf(def)
         QSF_ClientState.state, QSF_ClientState.counts())
 end
 
+-- every global quest in the files, running or not: there is no taking one, so there is
+-- nothing to sort them into.
+function QSF_Panel:buildGlobalRows()
+    local rows = {}
+
+    for _, def in ipairs(QSF_ClientState.globalOrdered) do
+        local run = QSF_ClientState.global[def.key]
+        local active = run and run.status == "active"
+
+        local row = {
+            key = def.key,
+            title = def.title,
+            subtitle = QSF_Detail.runText(run),
+            -- the row's own words for its colours: gold while it runs, green once it is
+            -- won, and grey for one that ran out.
+            status = active and "active" or (run and run.status == "completed" and "done") or nil,
+            locked = run ~= nil and run.status == "expired",
+        }
+
+        if active then
+            if #def.objectives == 1 then
+                local have, need = QSF_Rules.sharedProgress(def.objectives[1], 1, run)
+                row.counter = have .. "/" .. need
+            else
+                local done = 0
+                for i, obj in ipairs(def.objectives) do
+                    local _, _, satisfied = QSF_Rules.sharedProgress(obj, i, run)
+                    if satisfied then done = done + 1 end
+                end
+                row.counter = done .. "/" .. #def.objectives
+            end
+
+            row.progress = QSF_Rules.sharedOverall(def, run)
+        end
+
+        rows[#rows + 1] = row
+    end
+
+    return rows
+end
+
 function QSF_Panel:buildRows()
+    if self:isGlobal() then return self:buildGlobalRows() end
+
     local rows = {}
     local counts = QSF_ClientState.counts()
 
@@ -284,15 +401,34 @@ function QSF_Panel:refresh()
     end
 
     if not self.selected and self.rows[1] then self.selected = self.rows[1].key end
-    if self.detail then self.detail:setKey(self.selected) end
+    if self.detail then self.detail:setKey(self.selected, self:isGlobal()) end
 
     self:updateAction()
+end
+
+-- the one thing a player does to a global quest. greyed unless they are carrying something
+-- it is still short of, by the same sum the server takes with.
+function QSF_Panel:updateGlobalAction()
+    local def, run = self:globalSelection()
+
+    self.action:setTitle(getText("IGUI_QSF_Contribute"))
+    self.action:setEnable(def ~= nil and QSF_Rules.givable(def, run, QSF_ClientState.counts()) > 0)
+
+    if not self.globalRun then return end
+
+    self.globalRun:setTitle(getText(run and run.status == "active" and "IGUI_QSF_GlobalEnd" or "IGUI_QSF_GlobalStart"))
+    self.globalRun:setEnable(def ~= nil)
 end
 
 function QSF_Panel:updateAction()
     self:updateTeleport()
 
     if not self.action then return end
+
+    if self:isGlobal() then
+        self:updateGlobalAction()
+        return
+    end
 
     local def = self.selected and QSF_ClientState.defs[self.selected] or nil
 
@@ -326,8 +462,10 @@ end
 function QSF_Panel:updateTeleport()
     if not self.teleport then return end
 
-    local def = self.selected and QSF_ClientState.defs[self.selected] or nil
-    local rec = self.selected and QSF_ClientState.record(self.selected) or nil
+    -- a global quest has its own keys, and one could spell a personal quest's.
+    local key = not self:isGlobal() and self.selected or nil
+    local def = key and QSF_ClientState.defs[key] or nil
+    local rec = key and QSF_ClientState.record(key) or nil
 
     if not def or not def.teleport or not rec or rec.status ~= "active" then
         self.teleport:setVisible(false)
@@ -363,11 +501,13 @@ function QSF_Panel:prerender()
     self.tabActive.selected = self.tab == "active"
     self.tabAvailable.selected = self.tab == "available"
     self.tabDone.selected = self.tab == "done"
+    self.tabGlobal.selected = self:isGlobal()
 
     -- a java call in a per-frame prerender, and it cannot change without a reconnect.
     if self.reload then
         if self.isAdmin == nil then self.isAdmin = QSF.isAdmin(self.player) end
         self.reload:setVisible(self.isAdmin)
+        if self.globalRun then self.globalRun:setVisible(self.isAdmin and self:isGlobal()) end
     end
 end
 
@@ -394,7 +534,17 @@ function QSF_Panel:update()
         self:refresh()
     elseif self.ticks >= REFRESH_TICKS then
         self.ticks = 0
-        self:updateAction()
+
+        -- a countdown moves with nothing arriving to say so, and it is written on the rows.
+        -- every ten seconds is as fine as a line that counts in minutes can show.
+        local beat = math.floor(getTimestampMs() / 10000)
+
+        if self:isGlobal() and beat ~= self.beat then
+            self.beat = beat
+            self:refresh()
+        else
+            self:updateAction()
+        end
     end
 end
 
@@ -428,6 +578,7 @@ function QSF_Panel:onResize()
     if self.action then self.action:setY(footerY + 2) end
     if self.teleport then self.teleport:setY(footerY + 2) end
     if self.reload then self.reload:setY(footerY + 2) end
+    if self.globalRun then self.globalRun:setY(footerY + 2) end
 end
 
 function QSF_Panel:close()

@@ -491,6 +491,106 @@ function QSF_Schema.normalise(raw, sourceFile)
     return def, errors
 end
 
+local STARTS = { auto = true, manual = true }
+
+-- held to the same standard as a quest's rewards, less the one thing nobody is there to
+-- answer: these are paid when the quest ends, to people who may not even be online.
+local function QSF_normalisePayout(raw, errors, where)
+    local out = QSF_normaliseRewards(raw, errors, where)
+
+    if out.choice then
+        out.choice = nil
+        errors[#errors + 1] = where .. ": a global quest pays everybody the same, so the choice was dropped"
+    end
+
+    return out
+end
+
+-- a quest the whole server works on. returns def, errors, the same as normalise.
+function QSF_Schema.normaliseGlobal(raw, sourceFile)
+    local errors = {}
+
+    if type(raw) ~= "table" then
+        return nil, { (sourceFile or "?") .. ": global quest entry is not an object" }
+    end
+
+    local key = raw.key
+    if type(key) ~= "string" or not key:match(VALID_KEY) then
+        return nil, { (sourceFile or "?") .. ": every global quest needs a key of letters, digits, dot, dash or underscore" }
+    end
+
+    local where = "global " .. key
+
+    if type(raw.title) ~= "string" or raw.title == "" then
+        return nil, { where .. ": needs a title" }
+    end
+
+    local questLocation, locErr = QSF_normaliseLocation(raw.location, where)
+    if locErr then
+        errors[#errors + 1] = locErr
+        questLocation = nil
+    end
+    if questLocation == false then questLocation = nil end
+
+    if type(raw.objectives) ~= "table" or #raw.objectives == 0 then
+        return nil, { where .. ": needs at least one objective" }
+    end
+
+    local objectives = {}
+    for i, rawObj in ipairs(raw.objectives) do
+        local obj = QSF_normaliseObjective(rawObj, i, questLocation, errors, where)
+        -- the shared counters are by position as well.
+        if not obj then
+            return nil, errors
+        end
+
+        -- handed over from the log, wherever the player is, and always for keeps.
+        if obj.type == "collect" then
+            obj.location = nil
+            obj.consume = true
+        end
+
+        objectives[i] = obj
+    end
+
+    local start = raw.start
+    if start == nil then
+        start = "manual"
+    elseif not STARTS[start] then
+        errors[#errors + 1] = where .. ": start must be auto or manual, so it waits for an admin"
+        start = "manual"
+    end
+
+    -- zero is no time limit, the same as it means everywhere else. real hours, not the
+    -- world's: an event ends when the server owner said it would, however much anyone slept.
+    local duration = tonumber(raw.durationHours) or 0
+    if duration < 0 then
+        errors[#errors + 1] = where .. ": durationHours cannot be negative"
+        duration = 0
+    end
+
+    local def = {
+        key = key,
+        title = raw.title,
+        description = type(raw.description) == "string" and raw.description or "",
+        order = tonumber(raw.order) or 100,
+        location = questLocation,
+        objectives = objectives,
+        rewards = QSF_normalisePayout(raw.rewards, errors, where),
+        consolation = raw.consolation ~= nil
+            and QSF_normalisePayout(raw.consolation, errors, where .. " consolation") or nil,
+        start = start,
+        durationHours = duration,
+        minContribution = math.max(1, math.floor(tonumber(raw.minContribution) or 1)),
+        source = sourceFile,
+    }
+
+    QSF_checkPlaceholders(def.description, where, errors)
+
+    def.sig = QSF_Schema.signature(def)
+    return def, errors
+end
+
 -- returns npc, errors. npc is nil when there is no telling who it is or where it stands.
 function QSF_Schema.normaliseNpc(raw, sourceFile)
     local errors = {}
@@ -551,9 +651,21 @@ function QSF_Schema.normaliseNpc(raw, sourceFile)
     }, errors
 end
 
+local function QSF_warnHorde(defs, prefix, errors)
+    for key, def in pairs(defs) do
+        for _, obj in ipairs(def.objectives) do
+            if HORDE_TYPES[obj.type] then
+                errors[#errors + 1] = prefix .. key .. ": " .. obj.type
+                    .. " objectives need One More Horde, and will not move without it"
+                break
+            end
+        end
+    end
+end
+
 -- the mistakes invisible in a single file: a prereq naming a quest nobody defined, a
 -- prereq cycle, and a giver nobody defined.
-function QSF_Schema.crossValidate(defs, npcs)
+function QSF_Schema.crossValidate(defs, npcs, globals)
     local errors = {}
 
     -- a giver quest is kept off the log, so one pointing at nobody could never be taken.
@@ -577,15 +689,8 @@ function QSF_Schema.crossValidate(defs, npcs)
     -- kept rather than rejected: the same file has to load on a server that adds the mod
     -- later. looked up at call time, and nil when One More Horde is off.
     if not OneMoreHordeExtensions then
-        for key, def in pairs(defs) do
-            for _, obj in ipairs(def.objectives) do
-                if HORDE_TYPES[obj.type] then
-                    errors[#errors + 1] = key .. ": " .. obj.type
-                        .. " objectives need One More Horde, and will not move without it"
-                    break
-                end
-            end
-        end
+        QSF_warnHorde(defs, "", errors)
+        QSF_warnHorde(globals or {}, "global ", errors)
     end
 
     -- a cycle leaves every quest in it permanently unavailable with no visible symptom.

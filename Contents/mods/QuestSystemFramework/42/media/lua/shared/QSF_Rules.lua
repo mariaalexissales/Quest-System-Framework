@@ -226,12 +226,94 @@ function QSF_Rules.overallProgress(def, rec, counts)
     return total / #def.objectives
 end
 
+-- a global quest's counters are the server's, collect ones included: what has been handed
+-- over, not what anybody is carrying. run is its record. returns have, need, satisfied.
+function QSF_Rules.sharedProgress(obj, index, run)
+    local need = obj.count
+
+    local have = 0
+    if run and run.prog then have = run.prog[index] or 0 end
+    return have, need, have >= need
+end
+
+function QSF_Rules.sharedComplete(def, run)
+    if not def or not run then return false end
+
+    for i, obj in ipairs(def.objectives) do
+        local _, _, satisfied = QSF_Rules.sharedProgress(obj, i, run)
+        if not satisfied then return false end
+    end
+
+    return true
+end
+
+function QSF_Rules.sharedOverall(def, run)
+    if not def or #def.objectives == 0 then return 0 end
+
+    local total = 0
+    for i, obj in ipairs(def.objectives) do
+        local have, need = QSF_Rules.sharedProgress(obj, i, run)
+        total = total + math.min(1, have / need)
+    end
+
+    return total / #def.objectives
+end
+
+-- what one player could hand over right now: toward every collect objective still short,
+-- as much as they hold and no more than is missing. the button is enabled with this and
+-- the server takes with it. returns the total, and how many toward each objective.
+function QSF_Rules.givable(def, run, counts)
+    local total, plan = 0, {}
+    if not def or not run or run.status ~= "active" then return total, plan end
+
+    -- two objectives can ask for the same item, and it can only be handed over once.
+    local held = {}
+
+    for i, obj in ipairs(def.objectives) do
+        if obj.type == "collect" then
+            if held[obj.item] == nil then held[obj.item] = (counts and counts[obj.item]) or 0 end
+
+            local have, need = QSF_Rules.sharedProgress(obj, i, run)
+            local amount = math.min(held[obj.item], need - have)
+
+            if amount > 0 then
+                plan[i] = amount
+                held[obj.item] = held[obj.item] - amount
+                total = total + amount
+            end
+        end
+    end
+
+    return total, plan
+end
+
+-- a payout with nothing in it is not owed to anybody.
+function QSF_Rules.hasRewards(rewards)
+    if not rewards then return false end
+    if rewards.items and #rewards.items > 0 then return true end
+    return rewards.xp ~= nil and not table.isempty(rewards.xp)
+end
+
 -- the union across active quests, so the poll asks once per type not once per objective.
 function QSF_Rules.wantedItems(defs, state)
     local wanted = {}
 
     for key, rec in pairs(state or {}) do
         if rec.status == "active" then
+            local def = defs and defs[key]
+            for _, obj in ipairs(def and def.objectives or {}) do
+                if obj.type == "collect" then wanted[obj.item] = true end
+            end
+        end
+    end
+
+    return wanted
+end
+
+-- and whatever the global quests still running would take, into the same set.
+function QSF_Rules.wantedShared(defs, runs, wanted)
+    for key, run in pairs(runs or {}) do
+        if run.status == "active" then
             local def = defs and defs[key]
             for _, obj in ipairs(def and def.objectives or {}) do
                 if obj.type == "collect" then wanted[obj.item] = true end

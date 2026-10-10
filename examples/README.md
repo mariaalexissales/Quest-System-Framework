@@ -374,11 +374,140 @@ comes out of that file.
 
 To make a placed NPC hand out quests, put its key in a quest's `giver` and hit Reload.
 
+## Global quests
+
+```json
+{
+  "global": [
+    {
+      "key": "louisville_purge",
+      "title": "The Louisville Purge",
+      "start": "auto",
+      "durationHours": 72,
+      "location": "Louisville",
+      "objectives": [ { "type": "kill", "count": 5000 } ],
+      "rewards": { "items": [ { "item": "Base.Sledgehammer", "count": 1 } ] },
+      "consolation": { "items": [ { "item": "Base.Nails", "count": 50 } ] }
+    }
+  ]
+}
+```
+
+A global quest is one counter for the whole server. Nobody accepts it. Every kill that fits goes
+on the same number, and the first one a player lands puts them on the list of who took part.
+
+They go in the same folder, in any `.json`, under `global`. A file can hold `quests`, `npcs` and
+`global`, or any one of them. `global.json` in this folder has two to copy. Their keys are their
+own, so a global quest and an ordinary one can share a name.
+
+`key`, `title` and `objectives` are the only things you have to write. `description`, `order` and
+`location` work as they do on any quest.
+
+Players find them on the Global tab of the quest log, with the shared counter, how long is left,
+how many are taking part and what they've put in themselves.
+
+### Starting and ending
+
+`start` is `"manual"` or `"auto"`, default manual.
+
+A manual one sits on the Global tab saying Not started until an admin selects it and presses
+Start. An auto one starts by itself the first time the server loads it, which makes Reload the
+start button on a server with no admin in game. It only does that once. After a global quest has
+ended, running it again is always an admin pressing Start, and the new run begins from nothing.
+
+`durationHours` is how long it runs, in real hours, not the game's. `72` is three days whatever
+anybody's day length is and however much they sleep. Leave it out, or write 0, and there's no
+time limit.
+
+It ends one of two ways. Every objective is met, and everybody who took part gets `rewards`. Or
+the time runs out first, and they get `consolation` instead. Leave `consolation` out and running
+out of time pays nothing.
+
+An admin can press End on a running one. That counts as running out of time.
+
+### Who gets paid
+
+Everybody who put in at least `minContribution`, default 1. That's kills and items added together,
+so `"minContribution": 10` keeps out somebody who wandered in for one zombie.
+
+Anybody online when it ends is paid on the spot. Anybody offline is paid the next time they join,
+and so is anybody who was dead at the time. What they're owed is saved with the world, as it stood
+when the quest ended, so editing the quest afterwards or deleting it doesn't change it.
+
+`rewards` and `consolation` take `items` and `xp`, the same as any quest. A `choice` is dropped
+with a line in the log, since there's nobody to ask at a payout that happens by itself.
+
+### Objectives
+
+```json
+{ "type": "kill",    "count": 5000, "location": "Louisville" }
+{ "type": "collect", "item": "Base.Nails", "count": 1500 }
+{ "type": "horde",   "count": 3 }
+```
+
+`kill`, `horde` and `hordeKill` count exactly as they do on an ordinary quest, locations included,
+and a kill counts for a player's own quests at the same time.
+
+`collect` is a donation. Players press Contribute on the Global tab, get asked once, and hand over
+whatever they're carrying that the quest is still short of, bags included. It never takes more than
+is missing. The items are gone for good, so `consume` and `location` are ignored here.
+
+A counter stops at its `count`. Kills and items past that don't count toward taking part.
+
+### The report
+
+The server keeps who took part in the world save. To get it out, run this on the server console
+or over RCON:
+
+```
+reloadlua QSF_GlobalExport.lua
+```
+
+That writes `global_report.json` in the quest folder:
+
+```json
+{
+  "written": 1760000000,
+  "global": [
+    {
+      "key": "louisville_purge",
+      "title": "The Louisville Purge",
+      "run": 1,
+      "status": "active",
+      "started": 1759990000,
+      "ends": 1760249200,
+      "objectives": [ { "type": "kill", "have": 1200, "need": 5000 } ],
+      "participants": [
+        { "username": "alexis", "contributed": 312, "eligible": true, "owed": false }
+      ]
+    }
+  ],
+  "unpaid": []
+}
+```
+
+`status` is `active`, `completed` or `expired`. Times are Unix seconds, and a finished one has
+`ended` too. `eligible` is whether they met `minContribution`. `owed` is true for somebody who has
+a payout waiting for them to log in. `unpaid` lists every payout still waiting on somebody,
+including ones from a run that has since been started again.
+
+It holds the latest run of each quest. The file is also written by itself every time a global
+quest ends, so copy it somewhere if you want to keep a run's list before starting the next.
+
+The command's own reply is only "Lua file reloaded". The server log has the line that matters:
+
+```
+[QSF] global quest report written to Zomboid/Lua/QuestFramework/global_report.json
+```
+
 ## What players are told
 
 A line appears over the player's head when they take a quest, when they finish one, and when
 something they asked for is refused. A refusal says why: too far from the giver, or the same
 reason the log greys a row with. A quest that completes itself says so too.
+
+Everybody gets one when a global quest starts and when it ends, and whoever is paid for it gets
+another.
 
 Admins get one when a reload finishes.
 
@@ -396,6 +525,14 @@ A prereq loop, where A needs B and B needs A, gets caught at load. Left alone it
 quests permanently unavailable and nothing would ever tell you why.
 
 Kills count where the zombie died, not where the player was standing.
+
+Changing the objectives of a global quest while it's running resets its counters, and says so in
+the log. Who took part is kept. Taking one out of the files while it's running stops it counting,
+and if it ends that way nobody is paid.
+
+A server with nobody on it pauses unless you've told it not to, and a global quest's clock is only
+looked at while the game is running. One that runs out overnight is ended the moment somebody joins, or the moment the report
+is asked for.
 
 One More Horde keeps a list of the mods it allows on its Official leaderboard, and this one isn't
 on it yet. The horde objectives work regardless. A run with both mods on is flagged "Mod Added

@@ -46,6 +46,11 @@ jobs:
       - name: lua only calls what the game's lua has
         run: python estral-tools/quest-system-framework/check_runtime.py
 
+      # steam refuses an upload whose description reaches 8,000 bytes, and the
+      # game's id lines count.
+      - name: workshop page fits steam's limit
+        run: python estral-tools/workshop/check_length.py
+
   lua-tests:
     name: lua does what it should
     runs-on: ubuntu-latest

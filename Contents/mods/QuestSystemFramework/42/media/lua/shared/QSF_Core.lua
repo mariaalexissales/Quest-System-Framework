@@ -14,6 +14,10 @@ QSF.DIR = "QuestFramework"
 -- rewrites a file somebody typed out by hand and loses their comments.
 QSF.NPC_FILE = "npcs_placed.json"
 
+-- the other one it writes: who took part in each global quest, for whatever reads it from
+-- outside the game. written, never read back.
+QSF.GLOBAL_FILE = "global_report.json"
+
 -- tiles. how close a player has to stand to a giver to take a quest or hand one in.
 QSF.NPC_REACH = 3
 
@@ -41,12 +45,15 @@ function QSF.hasRemoteServer()
     return isClient() and not isServer()
 end
 
+-- asked on both ends: a client draws its buttons with it, and the server decides with it.
+-- so only singleplayer gets a free yes. a dedicated server is not a client either, and
+-- "no remote server" used to answer yes there too, for whoever sent the command.
 function QSF.isAdmin(player)
-    if not QSF.hasRemoteServer() then return true end
+    if not isClient() and not isServer() then return true end
     if not player then return false end
 
-    local level = player:getAccessLevel()
-    return level == "Admin" or level == "GM" or level == "Moderator"
+    local level = string.lower(tostring(player:getAccessLevel()))
+    return level == "admin" or level == "gm" or level == "moderator"
 end
 
 function QSF.log(message)

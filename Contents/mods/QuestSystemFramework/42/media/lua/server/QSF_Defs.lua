@@ -13,6 +13,8 @@ QSF_Defs = QSF_Defs or {}
 QSF_Defs.all = QSF_Defs.all or {}
 QSF_Defs.ordered = QSF_Defs.ordered or {}
 QSF_Defs.npcs = QSF_Defs.npcs or {}
+QSF_Defs.global = QSF_Defs.global or {}
+QSF_Defs.globalOrdered = QSF_Defs.globalOrdered or {}
 QSF_Defs.loaded = false
 
 -- if the listing gives us nothing, this name always works.
@@ -42,6 +44,11 @@ local STARTER = [[
 }
 ]]
 
+-- the listing hands back a bare name or a path, so only the tail is compared.
+local function QSF_isFile(path, name)
+    return path:sub(-#name):lower() == name
+end
+
 function QSF_Defs.listFiles()
     local files = {}
 
@@ -49,7 +56,8 @@ function QSF_Defs.listFiles()
     if ok and listing then
         for i = 0, listing:size() - 1 do
             local entry = tostring(listing:get(i))
-            if entry:lower():match("%.json$") then
+            -- the report is the mod's own output, and sits in the same folder.
+            if entry:lower():match("%.json$") and not QSF_isFile(entry, QSF.GLOBAL_FILE) then
                 -- the listing hands back either a bare name or a path.
                 if entry:find("[/\\]") then
                     files[#files + 1] = entry
@@ -138,9 +146,14 @@ local function QSF_npcList(decoded)
     return decoded.npcs
 end
 
--- the listing hands back a bare name or a path, so only the tail is compared.
+-- global quests ride along the same way, and a bare array has nowhere to put them either.
+local function QSF_globalList(decoded)
+    if type(decoded) ~= "table" or type(decoded.global) ~= "table" then return nil end
+    return decoded.global
+end
+
 local function QSF_isPlacedFile(path)
-    return path:sub(-#QSF.NPC_FILE):lower() == QSF.NPC_FILE
+    return QSF_isFile(path, QSF.NPC_FILE)
 end
 
 -- one file, decoded, or nil with the file counted as rejected and the reason logged.
@@ -221,25 +234,51 @@ local function QSF_addQuests(decoded, path, into, sources, tally)
     end
 end
 
+-- keyed apart from the personal quests, so one of each can share a name.
+local function QSF_addGlobals(decoded, path, into, sources, tally)
+    for _, raw in ipairs(QSF_globalList(decoded) or {}) do
+        local def, errors = QSF_Schema.normaliseGlobal(raw, path)
+        QSF_warnAll(errors, tally)
+
+        if not def then
+            tally.rejected = tally.rejected + 1
+        else
+            if into[def.key] then
+                QSF.warn("global " .. def.key .. ": already defined in " .. tostring(sources[def.key])
+                    .. ", the copy in " .. path .. " wins")
+            else
+                tally.globals = tally.globals + 1
+            end
+
+            into[def.key] = def
+            sources[def.key] = path
+        end
+    end
+end
+
 function QSF_Defs.load()
     local defs, sources = {}, {}
     local npcs, npcSources = {}, {}
+    local globals, globalSources = {}, {}
     local files = QSF_Defs.listFiles()
-    local tally = { quests = 0, npcs = 0, rejected = 0, warnings = 0 }
+    local tally = { quests = 0, npcs = 0, globals = 0, rejected = 0, warnings = 0 }
 
     for _, path in ipairs(files) do
         local decoded = QSF_readJson(path, tally)
         if decoded then
             QSF_addNpcs(decoded, path, npcs, npcSources, tally)
+            QSF_addGlobals(decoded, path, globals, globalSources, tally)
             QSF_addQuests(decoded, path, defs, sources, tally)
         end
     end
 
-    QSF_warnAll(QSF_Schema.crossValidate(defs, npcs), tally)
+    QSF_warnAll(QSF_Schema.crossValidate(defs, npcs, globals), tally)
 
     QSF_Defs.all = defs
     QSF_Defs.ordered = QSF_Defs.sort(defs)
     QSF_Defs.npcs = npcs
+    QSF_Defs.global = globals
+    QSF_Defs.globalOrdered = QSF_Defs.sort(globals)
     QSF_Defs.loaded = true
 
     QSF.log(#files .. " files, " .. tally.quests .. " quests loaded, "
@@ -248,6 +287,7 @@ function QSF_Defs.load()
     -- its own line, and only when there are any, so the summary above reads the way it
     -- always has on a server that never uses them.
     if tally.npcs > 0 then QSF.log(tally.npcs .. " npcs loaded") end
+    if tally.globals > 0 then QSF.log(tally.globals .. " global quests loaded") end
 
     if #files == 0 then
         QSF.log("no quest files found. drop .json files into Zomboid/Lua/" .. QSF.DIR .. "/")
@@ -296,19 +336,9 @@ function QSF_Defs.placed()
     return list
 end
 
--- the whole file, every time. it is the one file in the folder nobody wrote by hand, so
--- there are no comments or layout of anybody's to lose.
-function QSF_Defs.writePlaced(list)
-    local entries = {}
-
-    for index, npc in ipairs(list) do
-        local entry = {}
-        for _, field in ipairs(NPC_FIELDS) do entry[field] = npc[field] end
-        entries[index] = entry
-    end
-
-    local path = QSF.DIR .. "/" .. QSF.NPC_FILE
-    local text = PLACED_HEADER .. QSF_Json.encode({ npcs = entries }, NPC_FIELDS) .. "\n"
+-- one of the mod's own files in the quest folder, replaced whole. false if it could not be.
+function QSF_Defs.writeFile(name, text)
+    local path = QSF.DIR .. "/" .. name
 
     local ok, err = pcall(function()
         local writer = getFileWriter(path, true, false)
@@ -322,6 +352,21 @@ function QSF_Defs.writePlaced(list)
     end
 
     return true
+end
+
+-- the whole file, every time. it is the one file in the folder nobody wrote by hand, so
+-- there are no comments or layout of anybody's to lose.
+function QSF_Defs.writePlaced(list)
+    local entries = {}
+
+    for index, npc in ipairs(list) do
+        local entry = {}
+        for _, field in ipairs(NPC_FIELDS) do entry[field] = npc[field] end
+        entries[index] = entry
+    end
+
+    return QSF_Defs.writeFile(QSF.NPC_FILE,
+        PLACED_HEADER .. QSF_Json.encode({ npcs = entries }, NPC_FIELDS) .. "\n")
 end
 
 -- Reload goes straight to load(), so only a server start can seed.

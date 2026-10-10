@@ -31,6 +31,8 @@ function QSF_Detail:new(x, y, width, height)
     o.showBody = true
     o.showGiver = true
 
+    o.global = false
+
     o.backgroundColor = { r = 0, g = 0, b = 0, a = 0 }
     o.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     o.moveWithMouse = false
@@ -47,10 +49,26 @@ function QSF_Detail:createChildren()
     self.body = QSF_Theme.richText(self, PAD, 0, self.width - PAD * 2, 60)
 end
 
-function QSF_Detail:setKey(key)
-    if self.key == key then return end
+-- global quests keep their own keys, so the key alone does not say which list it is from.
+function QSF_Detail:setKey(key, global)
+    global = global == true
+    if self.key == key and self.global == global then return end
+
     self.key = key
+    self.global = global
     self.bodyDirty = true
+end
+
+function QSF_Detail:def()
+    if not self.key then return nil end
+    if self.global then return QSF_ClientState.globalDefs[self.key] end
+    return QSF_ClientState.defs[self.key]
+end
+
+-- have, need, satisfied. a global quest's are the server's counters, whatever the type.
+function QSF_Detail:progressOf(obj, index, rec)
+    if self.global then return QSF_Rules.sharedProgress(obj, index, rec) end
+    return QSF_Rules.objectiveProgress(obj, index, rec, QSF_ClientState.counts())
 end
 
 function QSF_Detail:refreshBody(def)
@@ -107,6 +125,31 @@ end
 
 QSF_Detail.reasonText = QSF_reasonText
 
+local MINUTE_MS = 60000
+
+-- the two largest units, which is as exact as anybody planning their evening needs.
+local function QSF_duration(ms)
+    local minutes = math.max(1, math.ceil(ms / MINUTE_MS))
+    local hours = math.floor(minutes / 60)
+    local days = math.floor(hours / 24)
+
+    if days > 0 then return getText("IGUI_QSF_Dur_Days", tostring(days), tostring(hours % 24)) end
+    if hours > 0 then return getText("IGUI_QSF_Dur_Hours", tostring(hours), tostring(minutes % 60)) end
+    return getText("IGUI_QSF_Dur_Minutes", tostring(minutes))
+end
+
+-- where a global quest has got to, in a line. the row and the pane both say it.
+local function QSF_runText(run)
+    if not run then return getText("IGUI_QSF_Global_NotStarted") end
+    if run.status == "completed" then return getText("IGUI_QSF_Global_Completed") end
+    if run.status ~= "active" then return getText("IGUI_QSF_Global_Expired") end
+    if not run.endsAt then return getText("IGUI_QSF_Global_Running") end
+
+    return getText("IGUI_QSF_Global_Left", QSF_duration(run.endsAt - getTimestampMs()))
+end
+
+QSF_Detail.runText = QSF_runText
+
 -- one line under a heading, set in past where a tick goes.
 function QSF_Detail:line(text, y, colour)
     QSF_Theme.text(self, QSF_Theme.truncate(text, self.width - PAD * 2 - ICON - GAP, UIFont.Small),
@@ -121,7 +164,7 @@ end
 function QSF_Detail:render()
     ISPanel.render(self)
 
-    local def = self.key and QSF_ClientState.defs[self.key] or nil
+    local def = self:def()
 
     if not def then
         local text = QSF_ClientState.ready and getText("IGUI_QSF_PickAQuest") or getText("IGUI_QSF_Connecting")
@@ -132,14 +175,19 @@ function QSF_Detail:render()
 
     if self.body then self.body:setVisible(self.showBody) end
 
-    local rec = QSF_ClientState.record(self.key)
+    -- a global quest's record is the server's run of it, not anything of the player's.
+    local rec
+    if self.global then rec = QSF_ClientState.global[self.key] else rec = QSF_ClientState.record(self.key) end
+
     local where = QSF_Location.describe(def.location)
 
     local y = self:drawHeader(def, rec, where, PAD)
     y = self:drawBody(def, y)
     y = self:drawObjectives(def, rec, where, y)
     y = self:drawRewards(def, y)
-    y = self:drawLock(def, rec, y)
+
+    -- nothing locks a global quest: it is running for everybody or for nobody.
+    if not self.global then y = self:drawLock(def, rec, y) end
 
     -- how far down it got, for a window that has to make room for all of it.
     self.contentHeight = y + PAD
@@ -165,7 +213,28 @@ function QSF_Detail:drawHeader(def, rec, where, y)
         y = y + self.lineHeight
     end
 
+    if self.global then y = self:drawRun(def, rec, y) end
+
     return y + GAP
+end
+
+-- how long is left, then who is in on it. the second line waits for somebody to be.
+function QSF_Detail:drawRun(def, run, y)
+    QSF_Theme.text(self, QSF_runText(run), PAD, y, QSF_Theme.COL_COUNT)
+    y = y + self.lineHeight
+
+    if not run or (run.count or 0) == 0 then return y end
+
+    local text = getText("IGUI_QSF_Global_Taking", tostring(run.count), tostring(run.mine or 0))
+
+    -- only worth saying when one kill is not enough to be counted in.
+    if (def.minContribution or 1) > 1 then
+        text = text .. "  " .. getText("IGUI_QSF_Global_Minimum", tostring(def.minContribution))
+    end
+
+    QSF_Theme.text(self, QSF_Theme.truncate(text, self.width - PAD * 2, UIFont.Small), PAD, y, QSF_Theme.COL_DIM)
+
+    return y + self.lineHeight
 end
 
 function QSF_Detail:drawBody(def, y)
@@ -190,11 +259,15 @@ function QSF_Detail:drawObjectives(def, rec, where, y)
             break
         end
 
-        local have, need, satisfied = QSF_Rules.objectiveProgress(obj, i, rec, counts)
+        local have, need, satisfied = self:progressOf(obj, i, rec)
         self:tick(satisfied and textures.iconTrue or textures.iconFalse, y)
 
         local label = obj.label or self:objectiveLabel(obj)
         local text = label .. "   " .. have .. "/" .. need
+
+        -- the counter is everybody's, so what this player could add to it is said apart.
+        local carrying = self.global and obj.type == "collect" and not satisfied and counts[obj.item] or 0
+        if carrying > 0 then text = text .. "  " .. getText("IGUI_QSF_Global_Carrying", tostring(carrying)) end
 
         -- only when it differs from the quest's own, which is already under the title.
         local scope = obj.location and QSF_Location.describe(obj.location) or nil
@@ -207,14 +280,26 @@ function QSF_Detail:drawObjectives(def, rec, where, y)
     return y + GAP
 end
 
+-- a global quest pays one of two things, and both are worth knowing going in.
 function QSF_Detail:drawRewards(def, y)
-    local rewards = def.rewards or {}
+    local after = self:drawPayout(def.rewards, "IGUI_QSF_Rewards", y)
+
+    if self.global and def.consolation then
+        after = self:drawPayout(def.consolation, "IGUI_QSF_Global_Consolation", after > y and after + GAP or after)
+    end
+
+    return after
+end
+
+function QSF_Detail:drawPayout(rewards, heading, y)
+    rewards = rewards or {}
+
     local items = rewards.items or {}
     local choice = rewards.choice
 
     if #items == 0 and not choice and not rewards.xp then return y end
 
-    QSF_Theme.text(self, getText("IGUI_QSF_Rewards"), PAD, y, QSF_Theme.COL_TEXT)
+    QSF_Theme.text(self, getText(heading), PAD, y, QSF_Theme.COL_TEXT)
     y = y + self.lineHeight + 2
 
     for i, entry in ipairs(items) do

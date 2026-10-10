@@ -14,6 +14,9 @@ QSF_ClientState.state = QSF_ClientState.state or {}
 QSF_ClientState.collect = QSF_ClientState.collect or {}
 QSF_ClientState.npcs = QSF_ClientState.npcs or {}
 QSF_ClientState.npcIds = QSF_ClientState.npcIds or {}
+QSF_ClientState.globalDefs = QSF_ClientState.globalDefs or {}
+QSF_ClientState.globalOrdered = QSF_ClientState.globalOrdered or {}
+QSF_ClientState.global = QSF_ClientState.global or {}
 QSF_ClientState.ready = false
 QSF_ClientState.revision = 0
 
@@ -25,16 +28,16 @@ end
 
 QSF_ClientState.touch = QSF_touch
 
-local function QSF_reorder()
+local function QSF_sorted(defs)
     local ordered = {}
-    for _, def in pairs(QSF_ClientState.defs) do ordered[#ordered + 1] = def end
+    for _, def in pairs(defs) do ordered[#ordered + 1] = def end
 
     table.sort(ordered, function(a, b)
         if a.order ~= b.order then return a.order < b.order end
         return a.key < b.key
     end)
 
-    QSF_ClientState.ordered = ordered
+    return ordered
 end
 
 local handlers = {}
@@ -65,7 +68,12 @@ end
 
 handlers.defs = QSF_staged("quests", function(defs)
     QSF_ClientState.defs = defs
-    QSF_reorder()
+    QSF_ClientState.ordered = QSF_sorted(defs)
+end)
+
+handlers.gdefs = QSF_staged("quests", function(defs)
+    QSF_ClientState.globalDefs = defs
+    QSF_ClientState.globalOrdered = QSF_sorted(defs)
 end)
 
 handlers.npcs = QSF_staged("npcs", function(npcs)
@@ -94,6 +102,45 @@ function handlers.delta(args)
         QSF_ClientState.state[args.key] = args.rec
     end
 
+    QSF_touch()
+end
+
+-- the server says how long a global quest has left rather than when it ends, since its
+-- clock is not this one. pinned to this machine's on arrival and counted down from there.
+local function QSF_pin(run)
+    if run.left then run.endsAt = getTimestampMs() + run.left end
+    return run
+end
+
+function handlers.gstate(args)
+    local runs = {}
+    for key, run in pairs((args and args.runs) or {}) do runs[key] = QSF_pin(run) end
+
+    QSF_ClientState.global = runs
+    QSF_touch()
+end
+
+-- one packet for everybody, so it cannot say what this player put in. that is kept from
+-- the last one that did, unless the quest has started over since.
+function handlers.gdelta(args)
+    if not args or not args.key or not args.run then return end
+
+    local run = args.run
+    local before = QSF_ClientState.global[args.key]
+
+    if run.mine == nil then
+        run.mine = (before and before.run == run.run) and before.mine or 0
+    end
+
+    QSF_ClientState.global[args.key] = QSF_pin(run)
+    QSF_touch()
+end
+
+function handlers.gmine(args)
+    local run = args and args.key and QSF_ClientState.global[args.key] or nil
+    if not run then return end
+
+    run.mine = args.mine or 0
     QSF_touch()
 end
 
@@ -157,6 +204,18 @@ end
 
 function QSF_ClientState.reload()
     QSF_Net.toServer("reload", {})
+end
+
+function QSF_ClientState.globalGive(key)
+    QSF_Net.toServer("globalGive", { key = key })
+end
+
+function QSF_ClientState.globalStart(key)
+    QSF_Net.toServer("globalStart", { key = key })
+end
+
+function QSF_ClientState.globalEnd(key)
+    QSF_Net.toServer("globalEnd", { key = key })
 end
 
 Events.OnServerCommand.Add(QSF_ClientState.onCommand)

@@ -9,6 +9,7 @@ require "QSF_State"
 require "QSF_Verify"
 require "QSF_Kills"
 require "QSF_Npcs"
+require "QSF_Global"
 
 if not QSF.isAuthority() then return end
 
@@ -40,6 +41,29 @@ local function QSF_wireDefs()
             autoComplete = def.autoComplete,
             giver = def.giver,
             dialogue = def.dialogue,
+            sig = def.sig,
+        }
+    end
+
+    return wire
+end
+
+local function QSF_wireGlobal()
+    local wire = {}
+
+    for _, def in ipairs(QSF_Defs.globalOrdered) do
+        wire[#wire + 1] = {
+            key = def.key,
+            title = def.title,
+            description = def.description,
+            order = def.order,
+            location = def.location,
+            objectives = def.objectives,
+            rewards = def.rewards,
+            consolation = def.consolation,
+            start = def.start,
+            durationHours = def.durationHours,
+            minContribution = def.minContribution,
             sig = def.sig,
         }
     end
@@ -98,6 +122,12 @@ function QSF_Commands.sendNpcs(player)
     QSF_Npcs.sendIds(player)
 end
 
+-- the quests, then where each one has got to and what this player has put in.
+function QSF_Commands.sendGlobal(player)
+    QSF_sendPieces(player, "gdefs", "quests", QSF_wireGlobal())
+    QSF_Global.sendSnapshot(player)
+end
+
 -- the client greys what it can with the same rules, so a refusal is a stale window or
 -- somebody going around the ui. it is told why either way, and what it was short of.
 local function QSF_refuse(player, key, reason, detail, extra)
@@ -113,6 +143,11 @@ function QSF_Commands.sync(player)
     QSF_Commands.sendDefs(player)
     QSF_Commands.sendNpcs(player)
     QSF_State.sendSnapshot(player)
+    QSF_Commands.sendGlobal(player)
+
+    -- last, so whatever ended while they were away is paid to somebody who can already
+    -- see what it was.
+    QSF_Global.settle(player)
 end
 
 function QSF_Commands.handlers.hello(player)
@@ -226,6 +261,7 @@ end
 -- npcs up or take them away, and tell everybody.
 local function QSF_reloadAll()
     QSF_Defs.load()
+    QSF_Global.reconcile()
 
     -- straight away, so an npc taken out of the files is gone before the reply lands.
     local ok, err = pcall(QSF_Npcs.ensure)
@@ -249,6 +285,51 @@ function QSF_Commands.handlers.reload(player)
 
     QSF_reloadAll()
     QSF_Net.toClient(player, "toast", { kind = "reloaded" })
+end
+
+-- the client sends a key and nothing else. what the player holds and how much is still
+-- missing are both the server's to count.
+function QSF_Commands.handlers.globalGive(player, args)
+    if not player or not args or not args.key then return end
+
+    local now = getTimestampMs()
+    local mark = player:getUsername() .. "/global/" .. args.key
+
+    if now - (lastClaim[mark] or 0) < CLAIM_COOLDOWN_MS then return end
+    lastClaim[mark] = now
+
+    local given, reason = QSF_Global.give(player, args.key)
+
+    if not given then
+        QSF_refuse(player, args.key, reason)
+        return
+    end
+
+    QSF_Net.toClient(player, "toast", { kind = "globalGave", count = given })
+end
+
+function QSF_Commands.handlers.globalStart(player, args)
+    if not QSF_adminOnly(player, "start a global quest") then return end
+    if not args or not args.key then return end
+
+    local ok, reason = QSF_Global.start(args.key)
+
+    if not ok then
+        QSF_refuse(player, args.key, reason)
+        return
+    end
+
+    QSF.log(tostring(player:getUsername()) .. " started global quest " .. args.key)
+end
+
+-- ended early is ended short, so it pays what running out of time would have.
+function QSF_Commands.handlers.globalEnd(player, args)
+    if not QSF_adminOnly(player, "end a global quest") then return end
+    if not args or not args.key then return end
+
+    if QSF_Global.finish(args.key, "expired") then
+        QSF.log(tostring(player:getUsername()) .. " ended global quest " .. args.key .. " early")
+    end
 end
 
 -- the tile is the admin's to choose, so unlike everywhere else the coordinates in the
