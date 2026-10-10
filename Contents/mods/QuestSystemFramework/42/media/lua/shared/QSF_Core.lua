@@ -60,6 +60,15 @@ function QSF.isAdmin(player)
     return level == "admin" or level == "gm" or level == "moderator"
 end
 
+-- pairs() hands keys over in any order, and anything shown or written down wants the
+-- same one every time.
+function QSF.sortedKeys(map)
+    local keys = {}
+    for key in pairs(map or {}) do keys[#keys + 1] = key end
+    table.sort(keys)
+    return keys
+end
+
 function QSF.log(message)
     print("[QSF] " .. tostring(message))
 end

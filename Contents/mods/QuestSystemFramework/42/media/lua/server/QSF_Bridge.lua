@@ -66,13 +66,6 @@ local REPORT_FIELDS = {
     "username", "contributed", "eligible", "owed",
 }
 
-local function QSF_sortedKeys(map)
-    local keys = {}
-    for key in pairs(map) do keys[#keys + 1] = key end
-    table.sort(keys)
-    return keys
-end
-
 -- the latest run of every global quest that has ever started, with everybody who took
 -- part, and then every payout still waiting on somebody, earlier runs included.
 function QSF_Bridge.report()
@@ -81,7 +74,7 @@ function QSF_Bridge.report()
     local waiting, unpaid = {}, {}
 
     for index, entry in ipairs(data.owed) do
-        local names = QSF_sortedKeys(entry.to)
+        local names = QSF.sortedKeys(entry.to)
         for _, username in ipairs(names) do
             waiting[entry.key .. "/" .. entry.run .. "/" .. username] = true
         end
@@ -91,7 +84,7 @@ function QSF_Bridge.report()
 
     local quests = {}
 
-    for _, key in ipairs(QSF_sortedKeys(data.runs)) do
+    for _, key in ipairs(QSF.sortedKeys(data.runs)) do
         local run, def = data.runs[key], QSF_Defs.global[key]
 
         local objectives = {}
@@ -100,7 +93,7 @@ function QSF_Bridge.report()
         end
 
         local participants = {}
-        for i, username in ipairs(QSF_sortedKeys(run.players)) do
+        for i, username in ipairs(QSF.sortedKeys(run.players)) do
             local units = run.players[username]
 
             participants[i] = {
