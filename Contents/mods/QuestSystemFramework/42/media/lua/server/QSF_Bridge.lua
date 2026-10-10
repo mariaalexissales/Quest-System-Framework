@@ -6,8 +6,6 @@ require "QSF_Core"
 require "QSF_Json"
 require "QSF_Defs"
 
-if not QSF.isAuthority() then return end
-
 -- everything that faces outside the game. the rest of the server says what happened and
 -- knows nothing about who is listening. whatever wants to tell the world, a file a discord
 -- bot reads or another mod altogether, asks to be told here.
@@ -57,6 +55,10 @@ function QSF_Bridge.emit(event, payload)
         end
     end
 end
+
+-- server/ lua loads on a multiplayer client too. asking to be told is harmless there, and
+-- is kept and never answered: nothing below this line happens on a client.
+if not QSF.isAuthority() then return end
 
 -- the order they are written in, which is the order somebody reading the file wants.
 local REPORT_FIELDS = {
