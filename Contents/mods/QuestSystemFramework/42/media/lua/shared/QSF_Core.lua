@@ -14,6 +14,10 @@ QSF.DIR = "QuestFramework"
 -- rewrites a file somebody typed out by hand and loses their comments.
 QSF.NPC_FILE = "npcs_placed.json"
 
+-- the other one it writes: who took part in each global quest, for whatever reads it from
+-- outside the game. written, never read back.
+QSF.GLOBAL_FILE = "global_report.json"
+
 -- tiles. how close a player has to stand to a giver to take a quest or hand one in.
 QSF.NPC_REACH = 3
 
