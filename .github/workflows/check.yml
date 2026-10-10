@@ -46,6 +46,11 @@ jobs:
       - name: lua only calls what the game's lua has
         run: python estral-tools/quest-system-framework/check_runtime.py
 
+      # a translation is a java format string. a stray % or an argument short is an error
+      # in the log on every call and a mangled line on screen, and no parse or test sees it.
+      - name: translation strings are ones the game can format
+        run: python estral-tools/quest-system-framework/check_translations.py
+
       # steam refuses an upload whose description reaches 8,000 bytes, and the
       # game's id lines count.
       - name: workshop page fits steam's limit
