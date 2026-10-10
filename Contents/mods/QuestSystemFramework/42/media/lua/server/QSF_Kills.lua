@@ -18,6 +18,10 @@ local MAX_PER_FLUSH = 40
 function QSF_Kills.bump(username, kind, x, y, z)
     if not username then return end
 
+    -- the server's own quests count the same thing. looked up at call time: nothing here
+    -- needs it to have loaded first.
+    if QSF_Global then QSF_Global.bump(username, kind, x, y, z) end
+
     local quests = QSF_State.forPlayer(username)
     if not quests then return end
 
