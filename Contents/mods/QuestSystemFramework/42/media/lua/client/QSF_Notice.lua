@@ -5,6 +5,7 @@
 require "QSF_Core"
 require "QSF_ClientState"
 require "QSF_Detail"
+require "QSF_Theme"
 
 QSF_Notice = QSF_Notice or {}
 
@@ -89,5 +90,14 @@ function QSF_Notice.show(args)
         HaloTextHelper.addGoodText(player, text)
     else
         HaloTextHelper.addBadText(player, text)
+    end
+
+    -- what a random reward came up as. it is already in the inventory, and nothing else
+    -- says which of the things it might have been it was.
+    if type(args.rolled) == "table" and #args.rolled > 0 then
+        local names = {}
+        for i, entry in ipairs(args.rolled) do names[i] = QSF_Theme.itemLabel(entry) end
+
+        HaloTextHelper.addGoodText(player, getText("IGUI_QSF_Notice_Rolled", table.concat(names, ", ")))
     end
 end

@@ -368,6 +368,7 @@ end
 function QSF_Rules.hasRewards(rewards)
     if not rewards then return false end
     if rewards.items and #rewards.items > 0 then return true end
+    if rewards.random then return true end
     return rewards.xp ~= nil and not table.isempty(rewards.xp)
 end
 

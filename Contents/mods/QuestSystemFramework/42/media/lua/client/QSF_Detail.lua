@@ -17,7 +17,7 @@ local GAP = 6
 local ICON = 12
 local MAX_OBJECTIVES = 8
 local MAX_REWARDS = 6
-local MAX_CHOICE = 6
+local MAX_POOL = 6
 
 -- how long the pane goes on drawing what it last worked out when nothing has arrived to
 -- say it is wrong. what locks a quest moves with the clock, a skill and a kill count, and a
@@ -367,9 +367,9 @@ function QSF_Detail:addPayout(rewards, heading, y)
     rewards = rewards or {}
 
     local items = rewards.items or {}
-    local choice = rewards.choice
+    local choice, random = rewards.choice, rewards.random
 
-    if #items == 0 and not choice and not rewards.xp then return y end
+    if not choice and not QSF_Rules.hasRewards(rewards) then return y end
 
     y = self:heading(getText(heading), y)
     y = self:addItems(items, MAX_REWARDS, y)
@@ -380,11 +380,17 @@ function QSF_Detail:addPayout(rewards, heading, y)
             y, QSF_Theme.COL_COUNT)
     end
 
-    -- the pool is listed on Available too, so the player can see what is on offer before
-    -- deciding whether the quest is worth taking.
+    -- both pools are listed on Available too, so the player can see what is on offer
+    -- before deciding whether the quest is worth taking: the one they will pick from, and
+    -- the one that is picked for them.
     if choice then
         y = self:heading(choice.label or getText("IGUI_QSF_ChooseOne"), y + 2)
-        y = self:addItems(choice.options, MAX_CHOICE, y)
+        y = self:addItems(choice.options, MAX_POOL, y)
+    end
+
+    if random then
+        y = self:heading(random.label or getText("IGUI_QSF_RandomRewards"), y + 2)
+        y = self:addItems(random.options, MAX_POOL, y)
     end
 
     return y

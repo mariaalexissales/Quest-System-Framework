@@ -32,14 +32,15 @@ end
 -- what happened, to everybody who asked. each is told the event's name and when, on top of
 -- whatever came with it:
 --   questAccepted      username, key, title
---   questCompleted     username, key, title, turnins
+--   questCompleted     username, key, title, turnins, rolled
 --   questAbandoned     username, key, title
 --   globalStarted      key, title, run, ends
 --   globalContributed  username, key, title, amount
 --   globalEnded        key, title, run, outcome, participants, owed
---   globalPaid         username, key, title, run, outcome
+--   globalPaid         username, key, title, run, outcome, rolled
 --   reloaded           quests, global, npcs
--- nothing is said per kill. a listener that throws is somebody else's code, and does not
+-- rolled is what a random reward came up as, a list of item and count, and is empty for
+-- a quest with none. nothing is said per kill. a listener that throws is somebody else's code, and does not
 -- get to take a turn-in or a payout down with it.
 function QSF_Bridge.emit(event, payload)
     local listeners = QSF_Bridge.listeners[event]

@@ -317,13 +317,25 @@ local function QSF_normaliseRewardItem(entry, where, errors)
     return { item = entry.item, count = count }
 end
 
+-- how likely one option of a random pool is beside the others, as a whole number: a 3
+-- comes up three times as often as a 1.
+local function QSF_normaliseWeight(raw, where, errors)
+    if raw == nil then return 1 end
+    if type(raw) == "number" and raw >= 1 then return math.floor(raw) end
+
+    errors[#errors + 1] = where .. ": weight must be a number of at least 1, so it counts as 1"
+    return 1
+end
+
 -- a pool of rewards under rewards[field]. choice is the one the player picks from at
--- turn-in. a bad option is dropped and the rest still stand; losing every one of them drops
--- the pool rather than leaving an empty one for the picker to open on.
+-- turn-in, and random is the one the server draws from for them. a bad option is dropped
+-- and the rest still stand; losing every one of them drops the pool rather than leaving an
+-- empty one to pick or draw from.
 local function QSF_normalisePool(raw, errors, key, field)
     if raw == nil then return nil end
 
     local name = key .. ": rewards." .. field
+    local drawn = field == "random"
 
     if type(raw) ~= "table" then
         errors[#errors + 1] = name .. " must be an object with an options list"
@@ -337,8 +349,13 @@ local function QSF_normalisePool(raw, errors, key, field)
 
     local options = {}
     for i, entry in ipairs(raw.options) do
-        local option = QSF_normaliseRewardItem(entry, name .. " option " .. i, errors)
-        if option then options[#options + 1] = option end
+        local where = name .. " option " .. i
+        local option = QSF_normaliseRewardItem(entry, where, errors)
+
+        if option then
+            if drawn then option.weight = QSF_normaliseWeight(entry.weight, where, errors) end
+            options[#options + 1] = option
+        end
     end
 
     if #options == 0 then
@@ -350,7 +367,28 @@ local function QSF_normalisePool(raw, errors, key, field)
         errors[#errors + 1] = key .. ": more than " .. MAX_CHOICE_OPTIONS .. " reward options makes an unwieldy picker"
     end
 
-    return { label = QSF_written(raw.label), options = options }
+    local pool = { label = QSF_written(raw.label), options = options }
+
+    -- how many of them one turn-in pays, each a different one.
+    if drawn then
+        pool.rolls = 1
+
+        if raw.rolls ~= nil then
+            if type(raw.rolls) == "number" and raw.rolls >= 1 then
+                pool.rolls = math.floor(raw.rolls)
+            else
+                errors[#errors + 1] = name .. " rolls must be a number of at least 1, so it is 1"
+            end
+        end
+
+        if pool.rolls > #options then
+            errors[#errors + 1] = name .. " rolls " .. pool.rolls .. " of only " .. #options
+                .. " options, so every one of them is paid"
+            pool.rolls = #options
+        end
+    end
+
+    return pool
 end
 
 local function QSF_normaliseRewards(raw, errors, key)
@@ -370,6 +408,7 @@ local function QSF_normaliseRewards(raw, errors, key)
     if raw.xp ~= nil then out.xp = QSF_normalisePerks(raw.xp, errors, key, XP) end
 
     out.choice = QSF_normalisePool(raw.choice, errors, key, "choice")
+    out.random = QSF_normalisePool(raw.random, errors, key, "random")
 
     return out
 end
@@ -517,7 +556,8 @@ end
 local STARTS = { auto = true, manual = true }
 
 -- held to the same standard as a quest's rewards, less the one thing nobody is there to
--- answer: these are paid when the quest ends, to people who may not even be online.
+-- answer: these are paid when the quest ends, to people who may not even be online. a
+-- random pool needs nobody asked, and everybody paid draws from it for themselves.
 local function QSF_normalisePayout(raw, errors, where)
     local out = QSF_normaliseRewards(raw, errors, where)
 

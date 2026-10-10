@@ -152,12 +152,13 @@ function QSF_Global.settle(player)
             -- than paid again on every login.
             entry.to[username] = nil
 
-            QSF_Rewards.grant(player, { key = entry.key, rewards = entry.rewards })
-            QSF_Net.toClient(player, "toast", { kind = "globalPaid", title = entry.title, outcome = entry.outcome })
+            local rolled = QSF_Rewards.grant(player, { key = entry.key, rewards = entry.rewards })
+            QSF_Net.toClient(player, "toast", { kind = "globalPaid", title = entry.title, outcome = entry.outcome,
+                rolled = rolled })
 
             QSF.log(username .. " paid for global quest " .. entry.key .. " (" .. entry.outcome .. ")")
             QSF_Bridge.emit("globalPaid", { username = username, key = entry.key, title = entry.title,
-                run = entry.run, outcome = entry.outcome })
+                run = entry.run, outcome = entry.outcome, rolled = rolled })
         end
 
         if not table.isempty(entry.to) then kept[#kept + 1] = entry end
