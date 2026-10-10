@@ -300,18 +300,7 @@ function QSF_Panel:buildGlobalRows()
         }
 
         if active then
-            if #def.objectives == 1 then
-                local have, need = QSF_Rules.sharedProgress(def.objectives[1], 1, run)
-                row.counter = have .. "/" .. need
-            else
-                local done = 0
-                for i, obj in ipairs(def.objectives) do
-                    local _, _, satisfied = QSF_Rules.sharedProgress(obj, i, run)
-                    if satisfied then done = done + 1 end
-                end
-                row.counter = done .. "/" .. #def.objectives
-            end
-
+            row.counter = QSF_Rules.sharedTally(def, run)
             row.progress = QSF_Rules.sharedOverall(def, run)
         end
 
@@ -354,19 +343,7 @@ function QSF_Panel:buildRows()
             }
 
             if status == "active" then
-                local done = 0
-                for i, obj in ipairs(def.objectives) do
-                    local _, _, satisfied = QSF_Rules.objectiveProgress(obj, i, rec, counts)
-                    if satisfied then done = done + 1 end
-                end
-
-                if #def.objectives == 1 then
-                    local have, need = QSF_Rules.objectiveProgress(def.objectives[1], 1, rec, counts)
-                    row.counter = have .. "/" .. need
-                else
-                    row.counter = done .. "/" .. #def.objectives
-                end
-
+                row.counter = QSF_Rules.tally(def, rec, counts)
                 row.progress = QSF_Rules.overallProgress(def, rec, counts)
             elseif locked then
                 row.subtitle = QSF_Detail.reasonText(reason, detail, extra) or row.subtitle

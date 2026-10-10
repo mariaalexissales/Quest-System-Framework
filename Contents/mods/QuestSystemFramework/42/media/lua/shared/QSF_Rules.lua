@@ -200,32 +200,6 @@ function QSF_Rules.objectiveProgress(obj, index, rec, counts)
     return have, need, have >= need
 end
 
-function QSF_Rules.isComplete(def, rec, counts)
-    if not def or not rec then return false end
-
-    for i, obj in ipairs(def.objectives) do
-        local _, _, satisfied = QSF_Rules.objectiveProgress(obj, i, rec, counts)
-        if not satisfied then return false end
-    end
-
-    return true
-end
-
--- each objective weighs the same, so a quest is not dominated by its largest number.
-function QSF_Rules.overallProgress(def, rec, counts)
-    if not def or #def.objectives == 0 then return 0 end
-
-    local total = 0
-    for i, obj in ipairs(def.objectives) do
-        local have, need = QSF_Rules.objectiveProgress(obj, i, rec, counts)
-        if need > 0 then
-            total = total + math.min(1, have / need)
-        end
-    end
-
-    return total / #def.objectives
-end
-
 -- a global quest's counters are the server's, collect ones included: what has been handed
 -- over, not what anybody is carrying. run is its record. returns have, need, satisfied.
 function QSF_Rules.sharedProgress(obj, index, run)
@@ -236,27 +210,95 @@ function QSF_Rules.sharedProgress(obj, index, run)
     return have, need, have >= need
 end
 
-function QSF_Rules.sharedComplete(def, run)
-    if not def or not run then return false end
+-- the three below are asked of a player's own quest and of a global one alike. progress is
+-- whichever of the two above the quest keeps count with.
+local function QSF_allMet(def, rec, progress, counts)
+    if not def or not rec then return false end
 
     for i, obj in ipairs(def.objectives) do
-        local _, _, satisfied = QSF_Rules.sharedProgress(obj, i, run)
+        local _, _, satisfied = progress(obj, i, rec, counts)
         if not satisfied then return false end
     end
 
     return true
 end
 
-function QSF_Rules.sharedOverall(def, run)
+-- each objective weighs the same, so a quest is not dominated by its largest number.
+local function QSF_fraction(def, rec, progress, counts)
     if not def or #def.objectives == 0 then return 0 end
 
     local total = 0
     for i, obj in ipairs(def.objectives) do
-        local have, need = QSF_Rules.sharedProgress(obj, i, run)
-        total = total + math.min(1, have / need)
+        local have, need = progress(obj, i, rec, counts)
+        if need > 0 then
+            total = total + math.min(1, have / need)
+        end
     end
 
     return total / #def.objectives
+end
+
+-- what a row says beside a quest somebody is on: the counter itself when there is only
+-- the one, and otherwise how many of them are met.
+local function QSF_tally(def, rec, progress, counts)
+    if #def.objectives == 1 then
+        local have, need = progress(def.objectives[1], 1, rec, counts)
+        return have .. "/" .. need
+    end
+
+    local done = 0
+    for i, obj in ipairs(def.objectives) do
+        local _, _, satisfied = progress(obj, i, rec, counts)
+        if satisfied then done = done + 1 end
+    end
+
+    return done .. "/" .. #def.objectives
+end
+
+function QSF_Rules.isComplete(def, rec, counts)
+    return QSF_allMet(def, rec, QSF_Rules.objectiveProgress, counts)
+end
+
+function QSF_Rules.overallProgress(def, rec, counts)
+    return QSF_fraction(def, rec, QSF_Rules.objectiveProgress, counts)
+end
+
+function QSF_Rules.tally(def, rec, counts)
+    return QSF_tally(def, rec, QSF_Rules.objectiveProgress, counts)
+end
+
+function QSF_Rules.sharedComplete(def, run)
+    return QSF_allMet(def, run, QSF_Rules.sharedProgress)
+end
+
+function QSF_Rules.sharedOverall(def, run)
+    return QSF_fraction(def, run, QSF_Rules.sharedProgress)
+end
+
+function QSF_Rules.sharedTally(def, run)
+    return QSF_tally(def, run, QSF_Rules.sharedProgress)
+end
+
+-- one counter an objective, all at nothing. dense from 1: a hole in a kahlua array loses
+-- everything after it.
+function QSF_Rules.blankProgress(def)
+    local prog = {}
+    for i = 1, #def.objectives do prog[i] = 0 end
+    return prog
+end
+
+-- by the order somebody gave them, then by key. pairs() alone would reshuffle the list
+-- between openings, and hand every client a different one.
+function QSF_Rules.sorted(defs)
+    local ordered = {}
+    for _, def in pairs(defs) do ordered[#ordered + 1] = def end
+
+    table.sort(ordered, function(a, b)
+        if a.order ~= b.order then return a.order < b.order end
+        return a.key < b.key
+    end)
+
+    return ordered
 end
 
 -- what one player could hand over right now: toward every collect objective still short,
@@ -295,25 +337,13 @@ function QSF_Rules.hasRewards(rewards)
 end
 
 -- the union across active quests, so the poll asks once per type not once per objective.
-function QSF_Rules.wantedItems(defs, state)
-    local wanted = {}
+-- state is a player's own records or the global runs, which say "active" the same way,
+-- and wanted is a set to add to when both are being asked about.
+function QSF_Rules.wantedItems(defs, state, wanted)
+    wanted = wanted or {}
 
     for key, rec in pairs(state or {}) do
         if rec.status == "active" then
-            local def = defs and defs[key]
-            for _, obj in ipairs(def and def.objectives or {}) do
-                if obj.type == "collect" then wanted[obj.item] = true end
-            end
-        end
-    end
-
-    return wanted
-end
-
--- and whatever the global quests still running would take, into the same set.
-function QSF_Rules.wantedShared(defs, runs, wanted)
-    for key, run in pairs(runs or {}) do
-        if run.status == "active" then
             local def = defs and defs[key]
             for _, obj in ipairs(def and def.objectives or {}) do
                 if obj.type == "collect" then wanted[obj.item] = true end

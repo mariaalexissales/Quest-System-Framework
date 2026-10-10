@@ -58,8 +58,7 @@ function QSF_State.reconcile(username, defs)
 
         if def and rec.status == "active" and rec.sig and rec.sig ~= def.sig then
             QSF.warn(username .. ": objectives for " .. key .. " changed, progress reset")
-            rec.prog = {}
-            for i = 1, #def.objectives do rec.prog[i] = 0 end
+            rec.prog = QSF_Rules.blankProgress(def)
             rec.sig = def.sig
         end
     end
@@ -79,11 +78,8 @@ function QSF_State.accept(username, def)
         -- carried like turnins: a teleport cooldown belongs to the quest, not to one run
         -- of it, or dropping and retaking would hand out a free reset.
         tp = existing and existing.tp or nil,
-        prog = {},
+        prog = QSF_Rules.blankProgress(def),
     }
-
-    -- dense from 1: a hole in a kahlua array loses everything after it.
-    for i = 1, #def.objectives do rec.prog[i] = 0 end
 
     quests[def.key] = rec
     return rec

@@ -28,18 +28,6 @@ end
 
 QSF_ClientState.touch = QSF_touch
 
-local function QSF_sorted(defs)
-    local ordered = {}
-    for _, def in pairs(defs) do ordered[#ordered + 1] = def end
-
-    table.sort(ordered, function(a, b)
-        if a.order ~= b.order then return a.order < b.order end
-        return a.key < b.key
-    end)
-
-    return ordered
-end
-
 local handlers = {}
 
 -- a list arrives in pieces and is held back until the last one, so a half-delivered set
@@ -68,12 +56,12 @@ end
 
 handlers.defs = QSF_staged("quests", function(defs)
     QSF_ClientState.defs = defs
-    QSF_ClientState.ordered = QSF_sorted(defs)
+    QSF_ClientState.ordered = QSF_Rules.sorted(defs)
 end)
 
 handlers.gdefs = QSF_staged("quests", function(defs)
     QSF_ClientState.globalDefs = defs
-    QSF_ClientState.globalOrdered = QSF_sorted(defs)
+    QSF_ClientState.globalOrdered = QSF_Rules.sorted(defs)
 end)
 
 handlers.npcs = QSF_staged("npcs", function(npcs)

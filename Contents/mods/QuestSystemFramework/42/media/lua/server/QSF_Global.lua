@@ -116,13 +116,10 @@ function QSF_Global.start(key)
         sig = def.sig,
         started = now,
         ends = def.durationHours > 0 and (now + def.durationHours * HOUR_MS) or nil,
-        prog = {},
+        prog = QSF_Rules.blankProgress(def),
         players = {},
         count = 0,
     }
-
-    -- dense from 1: a hole in a kahlua array loses everything after it.
-    for i = 1, #def.objectives do run.prog[i] = 0 end
 
     data.runs[key] = run
 
@@ -321,8 +318,7 @@ function QSF_Global.reconcile()
 
         if def and run.status == "active" and run.sig ~= def.sig then
             QSF.warn("global quest " .. key .. ": objectives changed, shared progress reset")
-            run.prog = {}
-            for i = 1, #def.objectives do run.prog[i] = 0 end
+            run.prog = QSF_Rules.blankProgress(def)
             run.sig = def.sig
         end
     end

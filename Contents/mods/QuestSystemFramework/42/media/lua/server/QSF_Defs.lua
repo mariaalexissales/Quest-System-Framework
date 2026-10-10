@@ -4,6 +4,7 @@
 
 require "QSF_Core"
 require "QSF_Json"
+require "QSF_Rules"
 require "QSF_Schema"
 
 if not QSF.isAuthority() then return end
@@ -275,10 +276,10 @@ function QSF_Defs.load()
     QSF_warnAll(QSF_Schema.crossValidate(defs, npcs, globals), tally)
 
     QSF_Defs.all = defs
-    QSF_Defs.ordered = QSF_Defs.sort(defs)
+    QSF_Defs.ordered = QSF_Rules.sorted(defs)
     QSF_Defs.npcs = npcs
     QSF_Defs.global = globals
-    QSF_Defs.globalOrdered = QSF_Defs.sort(globals)
+    QSF_Defs.globalOrdered = QSF_Rules.sorted(globals)
     QSF_Defs.loaded = true
 
     QSF.log(#files .. " files, " .. tally.quests .. " quests loaded, "
@@ -294,19 +295,6 @@ function QSF_Defs.load()
     end
 
     return defs
-end
-
--- pairs() alone would reshuffle the list between openings.
-function QSF_Defs.sort(defs)
-    local ordered = {}
-    for _, def in pairs(defs) do ordered[#ordered + 1] = def end
-
-    table.sort(ordered, function(a, b)
-        if a.order ~= b.order then return a.order < b.order end
-        return a.key < b.key
-    end)
-
-    return ordered
 end
 
 function QSF_Defs.get(key)

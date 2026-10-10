@@ -18,7 +18,7 @@ local lastClaim = {}
 -- never leave this machine: the server re-derives its own at turn-in.
 function QSF_Poll.scan(player)
     local wanted = QSF_Rules.wantedItems(QSF_ClientState.defs, QSF_ClientState.state)
-    QSF_Rules.wantedShared(QSF_ClientState.globalDefs, QSF_ClientState.global, wanted)
+    QSF_Rules.wantedItems(QSF_ClientState.globalDefs, QSF_ClientState.global, wanted)
 
     local counts = {}
     local inventory = player:getInventory()
