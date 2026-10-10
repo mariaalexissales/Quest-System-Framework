@@ -3,11 +3,11 @@
 ----------
 
 require "QSF_Core"
-require "QSF_Json"
 require "QSF_Location"
 require "QSF_Net"
 require "QSF_Rules"
 require "QSF_Defs"
+require "QSF_Bridge"
 require "QSF_State"
 require "QSF_Rewards"
 require "QSF_Verify"
@@ -127,6 +127,8 @@ function QSF_Global.start(key)
 
     QSF_Global.broadcast(key)
     QSF_Net.toAll("toast", { kind = "globalStarted", title = def.title })
+    QSF_Bridge.emit("globalStarted", { key = key, title = def.title, run = run.run,
+        ends = QSF_Bridge.seconds(run.ends) })
 
     return true
 end
@@ -154,6 +156,8 @@ function QSF_Global.settle(player)
             QSF_Net.toClient(player, "toast", { kind = "globalPaid", title = entry.title, outcome = entry.outcome })
 
             QSF.log(username .. " paid for global quest " .. entry.key .. " (" .. entry.outcome .. ")")
+            QSF_Bridge.emit("globalPaid", { username = username, key = entry.key, title = entry.title,
+                run = entry.run, outcome = entry.outcome })
         end
 
         if not table.isempty(entry.to) then kept[#kept + 1] = entry end
@@ -217,8 +221,9 @@ function QSF_Global.finish(key, outcome)
         QSF_Global.settle(player)
     end
 
-    -- the moment the list of who took part is worth having outside the game.
-    QSF_Global.write()
+    -- after the settling, so whoever hears it is told who is still waiting to be paid.
+    QSF_Bridge.emit("globalEnded", { key = key, title = title, run = run.run, outcome = outcome,
+        participants = run.count or 0, owed = owed })
 
     return true
 end
@@ -305,6 +310,9 @@ function QSF_Global.give(player, key)
 
     if given == 0 then return nil, "NothingToGive" end
 
+    QSF_Bridge.emit("globalContributed", { username = username, key = key, title = def.title, amount = given })
+
+    -- last: this is what finishes the quest when that was the end of it.
     QSF_moved(key, username, true)
 
     return given
@@ -349,99 +357,6 @@ function QSF_Global.tick()
 
     -- the throttle holds packets back, so something has to let the last one out.
     if not table.isempty(QSF_Global.dirty) then QSF_Global.flush() end
-end
-
--- the order they are written in, which is the order somebody reading the file wants.
-local REPORT_FIELDS = {
-    "written", "global", "unpaid",
-    "key", "title", "run", "status", "outcome", "started", "ends", "ended",
-    "objectives", "participants", "players",
-    "type", "item", "have", "need",
-    "username", "contributed", "eligible", "owed",
-}
-
--- seconds, which is what everything outside the game counts in.
-local function QSF_seconds(ms)
-    return ms and math.floor(ms / 1000) or nil
-end
-
-local function QSF_sortedKeys(map)
-    local keys = {}
-    for key in pairs(map) do keys[#keys + 1] = key end
-    table.sort(keys)
-    return keys
-end
-
--- the latest run of every quest that has ever started, with everybody who took part, and
--- then every payout still waiting on somebody, earlier runs included.
-function QSF_Global.report()
-    local data = QSF_Global.ensure()
-
-    local waiting, unpaid = {}, {}
-
-    for index, entry in ipairs(data.owed) do
-        local names = QSF_sortedKeys(entry.to)
-        for _, username in ipairs(names) do
-            waiting[entry.key .. "/" .. entry.run .. "/" .. username] = true
-        end
-
-        unpaid[index] = { key = entry.key, run = entry.run, outcome = entry.outcome, players = names }
-    end
-
-    local quests = {}
-
-    for _, key in ipairs(QSF_sortedKeys(data.runs)) do
-        local run, def = data.runs[key], QSF_Defs.global[key]
-
-        local objectives = {}
-        for i, obj in ipairs(def and def.objectives or {}) do
-            objectives[i] = { type = obj.type, item = obj.item, have = run.prog[i] or 0, need = obj.count }
-        end
-
-        local participants = {}
-        for i, username in ipairs(QSF_sortedKeys(run.players)) do
-            local units = run.players[username]
-
-            participants[i] = {
-                username = username,
-                contributed = units,
-                eligible = units >= (def and def.minContribution or 1),
-                owed = waiting[key .. "/" .. run.run .. "/" .. username] == true,
-            }
-        end
-
-        quests[#quests + 1] = {
-            key = key,
-            title = def and def.title or key,
-            run = run.run,
-            status = run.status,
-            started = QSF_seconds(run.started),
-            ends = QSF_seconds(run.ends),
-            ended = QSF_seconds(run.ended),
-            objectives = objectives,
-            participants = participants,
-        }
-    end
-
-    return { written = QSF_seconds(getTimestampMs()), global = quests, unpaid = unpaid }
-end
-
-function QSF_Global.write()
-    return QSF_Defs.writeFile(QSF.GLOBAL_FILE, QSF_Json.encode(QSF_Global.report(), REPORT_FIELDS) .. "\n")
-end
-
--- what QSF_GlobalExport.lua runs. an empty server stops the game clock and the minute tick
--- with it, so the overdue are settled first: whoever asks should not be told a quest that
--- ran out yesterday is still going.
-function QSF_Global.export()
-    if not QSF_Global.ready then return false end
-
-    QSF_Global.tick()
-
-    if not QSF_Global.write() then return false end
-
-    QSF.log("global quest report written to Zomboid/Lua/" .. QSF.DIR .. "/" .. QSF.GLOBAL_FILE)
-    return true
 end
 
 Events.OnInitGlobalModData.Add(function()

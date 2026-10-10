@@ -10,6 +10,7 @@ require "QSF_Verify"
 require "QSF_Kills"
 require "QSF_Npcs"
 require "QSF_Global"
+require "QSF_Bridge"
 
 if not QSF.isAuthority() then return end
 
@@ -173,6 +174,7 @@ QSF_Commands.handlers.accept = QSF_keyed(function(player, key)
     QSF_State.accept(username, def)
     QSF_State.push(username, key)
     QSF_Net.toClient(player, "toast", { kind = "accepted", key = key })
+    QSF_Bridge.emit("questAccepted", { username = username, key = key, title = def.title })
 end)
 
 -- the client sends a key and nothing else. the coordinates are read from the server's own
@@ -218,8 +220,15 @@ QSF_Commands.handlers.teleport = QSF_keyed(function(player, key)
 end)
 
 QSF_Commands.handlers.abandon = QSF_keyed(function(player, key)
-    QSF_State.abandon(player:getUsername(), key)
-    QSF_State.push(player:getUsername(), key)
+    local username = player:getUsername()
+    local dropped = QSF_State.abandon(username, key)
+
+    QSF_State.push(username, key)
+
+    if dropped then
+        local def = QSF_Defs.get(key)
+        QSF_Bridge.emit("questAbandoned", { username = username, key = key, title = def and def.title or key })
+    end
 end)
 
 QSF_Commands.handlers.claim = QSF_keyed(function(player, key, args)
@@ -250,6 +259,9 @@ local function QSF_reloadAll()
     for _, player in ipairs(QSF_State.players()) do
         QSF_Commands.sync(player)
     end
+
+    QSF_Bridge.emit("reloaded", { quests = #QSF_Defs.ordered, global = #QSF_Defs.globalOrdered,
+        npcs = #QSF_Defs.npcList() })
 end
 
 QSF_Commands.handlers.reload = QSF_admin("reload", function(player)

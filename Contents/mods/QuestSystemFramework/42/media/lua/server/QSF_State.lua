@@ -85,12 +85,13 @@ function QSF_State.accept(username, def)
     return rec
 end
 
+-- true when there was a quest to drop.
 function QSF_State.abandon(username, key)
     local quests = QSF_State.forPlayer(username)
-    if not quests then return end
+    if not quests then return false end
 
     local rec = quests[key]
-    if not rec or rec.status ~= "active" then return end
+    if not rec or rec.status ~= "active" then return false end
 
     -- turned in before, so the completed record stands; a first run just disappears,
     -- unless a teleport was used, which leaves the stamp behind on its own. a quest
@@ -103,6 +104,8 @@ function QSF_State.abandon(username, key)
     else
         quests[key] = nil
     end
+
+    return true
 end
 
 function QSF_State.complete(username, key)

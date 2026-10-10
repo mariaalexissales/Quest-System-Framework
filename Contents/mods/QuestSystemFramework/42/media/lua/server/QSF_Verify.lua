@@ -7,6 +7,7 @@ require "QSF_Net"
 require "QSF_Rules"
 require "QSF_State"
 require "QSF_Rewards"
+require "QSF_Bridge"
 
 if not QSF.isAuthority() then return end
 
@@ -115,8 +116,10 @@ function QSF_Verify.claim(player, key, pick)
     QSF_Net.toClient(player, "toast", { kind = "completed", key = key })
 
     QSF.log(username .. " completed " .. key)
-    return true
+    QSF_Bridge.emit("questCompleted", { username = username, key = key, title = def.title,
+        turnins = QSF_State.record(username, key).turnins })
 
+    return true
 end
 
 -- covers a client that crashed or never had the mod, and runs the same check claim does.
