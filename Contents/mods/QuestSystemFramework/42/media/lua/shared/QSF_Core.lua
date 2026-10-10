@@ -18,6 +18,10 @@ QSF.NPC_FILE = "npcs_placed.json"
 -- outside the game. written, never read back.
 QSF.GLOBAL_FILE = "global_report.json"
 
+-- everything in that folder the mod writes and never reads back. it sits among the quest
+-- files and ends in .json the way they do, so the loader has to be told to step over it.
+QSF.OWN_FILES = { [QSF.GLOBAL_FILE] = true }
+
 -- tiles. how close a player has to stand to a giver to take a quest or hand one in.
 QSF.NPC_REACH = 3
 
