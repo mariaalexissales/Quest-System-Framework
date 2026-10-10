@@ -1,0 +1,50 @@
+{
+  // global quests: one counter for the whole server. nobody accepts them, and everybody who
+  // put in enough is paid when they end, online or not.
+  "global": [
+    {
+      // starts by itself the first time the server loads it, and runs for three real days.
+      "key": "louisville_purge",
+      "title": "The Louisville Purge",
+      "description": "Nobody takes Louisville alone. <LINE> Everybody, all of them, by the end of the weekend.",
+      "order": 10,
+      "start": "auto",
+      "durationHours": 72,
+      "minContribution": 10,
+      "location": "Louisville",
+      "objectives": [
+        { "type": "kill", "count": 5000 }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.Sledgehammer", "count": 1 }
+        ],
+        "xp": { "Axe": 500 }
+      },
+      "consolation": {
+        "items": [
+          { "item": "Base.Nails", "count": 50 }
+        ]
+      }
+    },
+
+    {
+      // waits for an admin to press Start, and has no time limit. players hand items over
+      // with Contribute in the quest log.
+      "key": "wall_fund",
+      "title": "Something To Hide Behind",
+      "description": "The wall goes up when the pile is big enough. <LINE> Bring what you can spare.",
+      "order": 20,
+      "objectives": [
+        { "type": "collect", "item": "Base.Plank", "count": 400 },
+        { "type": "collect", "item": "Base.Nails", "count": 1500 }
+      ],
+      "rewards": {
+        "items": [
+          { "item": "Base.Hammer", "count": 1 },
+          { "item": "Base.Saw", "count": 1 }
+        ]
+      }
+    }
+  ]
+}
