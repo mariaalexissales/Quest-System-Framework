@@ -61,6 +61,76 @@ function QSF_Rules.atGiver(def, npcs, player)
     return QSF_Rules.inReach(player, npcs and npcs[def.giver])
 end
 
+-- everything a quest asks of a player before it can be taken, in the order it is asked.
+-- given a list, each one goes into it with whether it is met. given none, the first one
+-- that is not met is the answer, as canAccept's reason and what goes with it.
+local function QSF_requirements(def, player, state, list)
+    local prereqs = def.prereqs or {}
+
+    for _, needed in ipairs(prereqs.quests or {}) do
+        local other = state and state[needed]
+        local met = other ~= nil and other.status == "done"
+
+        if list then
+            list[#list + 1] = { reason = "NeedQuest", detail = needed, met = met }
+        elseif not met then
+            return "NeedQuest", needed
+        end
+    end
+
+    -- the rest are about the character, and there is nothing to ask without one.
+    if not player then return nil end
+
+    local skills = list and {} or nil
+
+    for perkName, level in pairs(prereqs.skills or {}) do
+        local met = QSF_perkLevel(player, perkName) >= level
+
+        if skills then
+            skills[#skills + 1] = { reason = "NeedSkill", detail = perkName, extra = level, met = met }
+        elseif not met then
+            -- apart, so the client can swap in the name the character sheet uses.
+            return "NeedSkill", perkName, level
+        end
+    end
+
+    if skills then
+        -- pairs() hands them over in any order, and a list that reshuffles reads as broken.
+        table.sort(skills, function(a, b) return a.detail < b.detail end)
+        for _, entry in ipairs(skills) do list[#list + 1] = entry end
+    end
+
+    if prereqs.kills then
+        local met = player:getZombieKills() >= prereqs.kills
+
+        if list then
+            list[#list + 1] = { reason = "NeedKills", detail = prereqs.kills, met = met }
+        elseif not met then
+            return "NeedKills", prereqs.kills
+        end
+    end
+
+    if prereqs.daysSurvived then
+        local met = getGameTime():getDaysSurvived() >= prereqs.daysSurvived
+
+        if list then
+            list[#list + 1] = { reason = "NeedDays", detail = prereqs.daysSurvived, met = met }
+        elseif not met then
+            return "NeedDays", prereqs.daysSurvived
+        end
+    end
+
+    return nil
+end
+
+-- what a quest asks for, each with whether this player has it: the list the details show
+-- with a tick or a cross on every line. the same walk canAccept refuses by.
+function QSF_Rules.prereqList(def, player, state)
+    local list = {}
+    if def then QSF_requirements(def, player, state, list) end
+    return list
+end
+
 -- the client greys a row with this and the server authorises with it, so a greyed row and
 -- a refused button cannot disagree. reason is a translation key suffix.
 function QSF_Rules.canAccept(def, rec, player, state)
@@ -88,31 +158,8 @@ function QSF_Rules.canAccept(def, rec, player, state)
         end
     end
 
-    local prereqs = def.prereqs or {}
-
-    for _, needed in ipairs(prereqs.quests or {}) do
-        local other = state and state[needed]
-        if not other or other.status ~= "done" then
-            return false, "NeedQuest", needed
-        end
-    end
-
-    if player then
-        for perkName, level in pairs(prereqs.skills or {}) do
-            if QSF_perkLevel(player, perkName) < level then
-                -- apart, so the client can swap in the name the character sheet uses.
-                return false, "NeedSkill", perkName, level
-            end
-        end
-
-        if prereqs.kills and player:getZombieKills() < prereqs.kills then
-            return false, "NeedKills", prereqs.kills
-        end
-
-        if prereqs.daysSurvived and getGameTime():getDaysSurvived() < prereqs.daysSurvived then
-            return false, "NeedDays", prereqs.daysSurvived
-        end
-    end
+    local reason, detail, extra = QSF_requirements(def, player, state)
+    if reason then return false, reason, detail, extra end
 
     return true
 end

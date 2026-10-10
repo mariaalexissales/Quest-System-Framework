@@ -121,6 +121,23 @@ end
 
 QSF_Detail.reasonText = QSF_reasonText
 
+-- one line of the prerequisites, which sit under a heading that already says they are
+-- required. a quest is named by its title.
+local function QSF_prereqText(entry)
+    if entry.reason == "NeedQuest" then
+        local def = QSF_ClientState.defs[entry.detail]
+        return def and def.title or tostring(entry.detail)
+    end
+
+    if entry.reason == "NeedSkill" then
+        return getText("IGUI_QSF_Prereq_Skill", QSF_Theme.perkName(entry.detail), tostring(entry.extra))
+    end
+
+    if entry.reason == "NeedKills" then return getText("IGUI_QSF_Prereq_Kills", tostring(entry.detail)) end
+
+    return getText("IGUI_QSF_Prereq_Days", tostring(entry.detail))
+end
+
 local MINUTE_MS = 60000
 
 -- the two largest units, which is as exact as anybody planning their evening needs.
@@ -231,7 +248,7 @@ function QSF_Detail:build()
     y = self:addRewards(def, y)
 
     -- nothing locks a global quest: it is running for everybody or for nobody.
-    if not self.global then y = self:addLock(def, rec, y) end
+    if not self.global then y = self:addLock(def, y) end
 
     -- how far down it got, for a window that has to make room for all of it.
     self.contentHeight = y + PAD
@@ -373,15 +390,33 @@ function QSF_Detail:addPayout(rewards, heading, y)
     return y
 end
 
--- a player cannot act on "no" alone.
-function QSF_Detail:addLock(def, rec, y)
-    local ok, reason, detail, extra = QSF_Rules.canAccept(def, rec, getPlayer(), QSF_ClientState.state)
-    if ok or reason == "AlreadyActive" then return y end
+-- a player cannot act on "no" alone. a quest still to be taken lists everything it asks
+-- for, met or not, so what is left to do is plain before and after. one already finished
+-- has only the one thing in the way, and says that.
+function QSF_Detail:addLock(def, y)
+    local player = getPlayer()
+    local textures = QSF_Theme.textures()
+    local state, reason, detail, extra = QSF_ClientState.stateOf(def, player)
 
-    local text = QSF_reasonText(reason, detail, extra)
-    if not text then return y end
+    if state == "turnin" or state == "progress" then return y end
 
-    y = self:heading(getText("IGUI_QSF_Locked"), y + GAP)
+    if state == "done" then
+        local text = QSF_reasonText(reason, detail, extra)
+        if not text then return y end
 
-    return self:line(text, y, QSF_Theme.COL_DIM, QSF_Theme.textures().iconFalse)
+        y = self:heading(getText("IGUI_QSF_Locked"), y + GAP)
+        return self:line(text, y, QSF_Theme.COL_DIM, textures.iconFalse)
+    end
+
+    local list = QSF_Rules.prereqList(def, player, QSF_ClientState.state)
+    if #list == 0 then return y end
+
+    y = self:heading(getText("IGUI_QSF_Prerequisites"), y + GAP)
+
+    for _, entry in ipairs(list) do
+        y = self:line(QSF_prereqText(entry), y, entry.met and QSF_Theme.COL_DONE or QSF_Theme.COL_TEXT,
+            entry.met and textures.iconTrue or textures.iconFalse) + 2
+    end
+
+    return y
 end
