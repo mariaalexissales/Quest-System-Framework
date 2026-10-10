@@ -60,7 +60,7 @@ limit either way.
 
 `autoComplete` defaults to true. It's forced off when a quest consumes items, so nobody has their
 nails taken the second they pick the last one up. It's also forced off when the rewards have a
-`choice`, since there's nobody to ask which one they wanted.
+`choice`, since there's nobody to ask which one they wanted. A `random` pool leaves it alone.
 
 ## Objectives
 
@@ -120,8 +120,10 @@ Without that mod switched on they still load, nothing counts toward them, and th
 }
 ```
 
-Anything a player hasn't met shows greyed in Available with the reason written out. `hidden` keeps
-it off the list entirely until it unlocks.
+Anything a player hasn't met shows greyed in Available, with the first thing in the way written
+on the row. Click it and the details list every one of them under Prerequisites, each with a tick
+or a cross, so they can see what's done and what's left. `hidden` keeps it off the list entirely
+until it unlocks.
 
 Perk names are the engine's, not the ones on the character sheet. These four catch everyone:
 
@@ -133,7 +135,7 @@ Perk names are the engine's, not the ones on the character sheet. These four cat
 | Lightfooted | `Lightfoot` |
 
 That's only for the file. Players are shown the character sheet's name, so `"Woodwork": 3` reads
-as "Requires Carpentry 3" and an XP reward as "Carpentry +500 XP".
+as "Carpentry level 3" under Prerequisites and an XP reward as "Carpentry +500 XP".
 
 A name the game doesn't know gets named in the log and dropped, the same as an item.
 
@@ -226,8 +228,7 @@ which are still paid in full. Cancel leaves the quest in progress and nothing is
 The options are listed in the quest's details on Available too, so people can see what's on offer
 before they take it. The details show the first six, and the picker shows the lot.
 
-`label` is the heading on both. Leave it out and you get "Choose your reward" on the picker and
-"Choose one" in the details.
+`label` is the heading on both. Leave it out and both say "Choose one:".
 
 Options are written the same way as `items`. One the game doesn't recognise gets named in the log
 and dropped, and the rest still stand. If every option is dropped, the choice goes with them and
@@ -235,6 +236,40 @@ the quest pays out like it never had one.
 
 Past eight options the log warns you. They all still load, but the picker grows to fit rather than
 scrolling, so a long enough list will run off the screen.
+
+### Leaving it to chance
+
+```json
+"rewards": {
+  "items": [ { "item": "Base.Nails", "count": 20 } ],
+  "random": {
+    "rolls": 1,
+    "options": [
+      { "item": "Base.Axe", "weight": 1 },
+      { "item": "Base.Hammer", "weight": 3 },
+      { "item": "Base.Plank", "count": 5, "weight": 6 }
+    ]
+  }
+}
+```
+
+Give the rewards a `random` pool and the server draws from it at turn-in. The player gets what
+comes up on top of everything in `items` and `xp`, and a second line over their head says what it
+was.
+
+`weight` is how likely an option is beside the others, default 1. Above, the planks come up six
+times in ten, the hammer three and the axe once. It's a whole number of 1 or more. Anything else
+counts as 1 and gets a line in the log.
+
+`rolls` is how many options one turn-in pays, default 1. Every roll is a different option, so
+`"rolls": 2` above is always two different things. Ask for more rolls than there are options and
+you get every option, with a line in the log.
+
+The pool is listed in the quest's details under "Random rewards:", or under a `label` if you give
+it one. The details show the first six, and never the odds.
+
+It can sit beside a `choice`. Options are written and checked the same way: one the game doesn't
+recognise gets named in the log and dropped, and if they all go the pool goes with them.
 
 ## NPCs
 
@@ -420,8 +455,8 @@ anybody's day length is and however much they sleep. Leave it out, or write 0, a
 time limit.
 
 It ends one of two ways. Every objective is met, and everybody who took part gets `rewards`. Or
-the time runs out first, and they get `consolation` instead. Leave `consolation` out and running
-out of time pays nothing.
+the time runs out first, and they get `consolation` instead, which the quest's details list as
+"Participation rewards:". Leave `consolation` out and running out of time pays nothing.
 
 An admin can press End on a running one. That counts as running out of time.
 
@@ -434,8 +469,9 @@ Anybody online when it ends is paid on the spot. Anybody offline is paid the nex
 and so is anybody who was dead at the time. What they're owed is saved with the world, as it stood
 when the quest ended, so editing the quest afterwards or deleting it doesn't change it.
 
-`rewards` and `consolation` take `items` and `xp`, the same as any quest. A `choice` is dropped
-with a line in the log, since there's nobody to ask at a payout that happens by itself.
+`rewards` and `consolation` take `items`, `xp` and a `random` pool, the same as any quest, and
+everybody who's paid gets their own draw from the pool. A `choice` is dropped with a line in the
+log, since there's nobody to ask at a payout that happens by itself.
 
 ### Objectives
 
@@ -500,11 +536,48 @@ The command's own reply is only "Lua file reloaded". The server log has the line
 [QSF] global quest report written to Zomboid/Lua/QuestFramework/global_report.json
 ```
 
+## Hooking something up
+
+For another mod, or the game's half of a bot, the server says what happens as it happens. Ask to
+be told from a file in your own mod's `media/lua/server/`:
+
+```lua
+require "QSF_Bridge"
+
+QSF_Bridge.on("questCompleted", "MyMod", function(event)
+    print(event.username .. " finished " .. event.title)
+end)
+```
+
+The second argument is your name for the listener. Asking again under the same name replaces the
+first one, so a file that gets reloaded doesn't hear everything twice.
+
+| Event | What comes with it |
+|---|---|
+| `questAccepted` | `username`, `key`, `title` |
+| `questCompleted` | `username`, `key`, `title`, `turnins`, `rolled` |
+| `questAbandoned` | `username`, `key`, `title` |
+| `globalStarted` | `key`, `title`, `run`, `ends` |
+| `globalContributed` | `username`, `key`, `title`, `amount` |
+| `globalEnded` | `key`, `title`, `run`, `outcome`, `participants`, `owed` |
+| `globalPaid` | `username`, `key`, `title`, `run`, `outcome`, `rolled` |
+| `reloaded` | `quests`, `global`, `npcs` |
+
+Every one also has `event`, its own name, and `at`, the time in Unix seconds. `rolled` is what a
+random reward came up as, a list of `item` and `count`, and is empty when there wasn't one.
+`outcome` is `completed` or `expired`. Nothing is sent per kill.
+
+It's the server that says it. A multiplayer client loads `server/` files as well, and there the
+listener is kept and never called. A listener that throws gets a line in the log and holds nothing
+else up. The report above is one of these listeners, on
+`globalEnded`.
+
 ## What players are told
 
 A line appears over the player's head when they take a quest, when they finish one, and when
 something they asked for is refused. A refusal says why: too far from the giver, or the same
-reason the log greys a row with. A quest that completes itself says so too.
+reason the log greys a row with. A quest that completes itself says so too. When a random reward
+was part of the payout, a second line says what it came up as.
 
 Everybody gets one when a global quest starts and when it ends, and whoever is paid for it gets
 another.
