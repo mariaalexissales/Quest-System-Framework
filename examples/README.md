@@ -254,8 +254,8 @@ scrolling, so a long enough list will run off the screen.
 ```
 
 Give the rewards a `random` pool and the server draws from it at turn-in. The player gets what
-comes up on top of everything in `items` and `xp`, and a second line over their head says what it
-was.
+comes up on top of everything in `items` and `xp`, and the line over their head goes on to say
+what it was.
 
 `weight` is how likely an option is beside the others, default 1. Above, the planks come up six
 times in ten, the hammer three and the axe once. It's a whole number of 1 or more. Anything else
@@ -577,7 +577,7 @@ else up. The report above is one of these listeners, on
 A line appears over the player's head when they take a quest, when they finish one, and when
 something they asked for is refused. A refusal says why: too far from the giver, or the same
 reason the log greys a row with. A quest that completes itself says so too. When a random reward
-was part of the payout, a second line says what it came up as.
+was part of the payout, the same line goes on to say what it came up as.
 
 Everybody gets one when a global quest starts and when it ends, and whoever is paid for it gets
 another.
