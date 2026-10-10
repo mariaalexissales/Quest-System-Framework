@@ -37,15 +37,16 @@ local function QSF_zoneNames(x, y, z)
 end
 
 -- x, y, z are world tile coordinates. loc is whatever the json gave us, already
--- normalised by QSF_Schema.
-function QSF_Location.matchXY(x, y, z, loc)
+-- normalised by QSF_Schema. seen is a table of the caller's, kept for as long as it goes on
+-- asking about the same spot, so the engine is only asked what is there the once.
+function QSF_Location.matchXY(x, y, z, loc, seen)
     if loc == nil or loc == false then return true end
     if not x or not y then return false end
 
     if type(loc) == "table" then
         if loc.any then
             for _, entry in ipairs(loc.any) do
-                if QSF_Location.matchXY(x, y, z, entry) then return true end
+                if QSF_Location.matchXY(x, y, z, entry, seen) then return true end
             end
             return false
         end
@@ -65,13 +66,21 @@ function QSF_Location.matchXY(x, y, z, loc)
     local box = QSF_Towns.box(loc)
     if box then return QSF_inBox(x, y, box) end
 
-    local names, sawRegion = QSF_zoneNames(x, y, z)
-    if names[loc] then return true end
+    if not seen then seen = {} end
+    if not seen.names then seen.names, seen.sawRegion = QSF_zoneNames(x, y, z) end
+
+    if seen.names[loc] then return true end
 
     -- what the engine calls anywhere that is not inside a region.
-    if loc == "General" then return not sawRegion end
+    if loc == "General" then return not seen.sawRegion end
 
     return false
+end
+
+-- whether a step of this kind, made here, goes on this objective. a counter with no place
+-- to test leaves the coordinates off and matches anywhere.
+function QSF_Location.takes(obj, kind, x, y, z, seen)
+    return obj.type == kind and (not x or QSF_Location.matchXY(x, y, z, obj.location, seen))
 end
 
 -- a short human label for the ui. boxes get described by their shape rather than their

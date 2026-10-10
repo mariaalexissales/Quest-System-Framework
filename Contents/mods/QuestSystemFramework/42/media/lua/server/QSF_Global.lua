@@ -261,7 +261,7 @@ end
 
 -- one step on every running quest's objectives of this kind. QSF_Kills.bump calls it with
 -- whatever it was given, so kills and both horde counts arrive through the one door.
-function QSF_Global.bump(username, kind, x, y, z)
+function QSF_Global.bump(username, kind, x, y, z, seen)
     if not username or not QSF_Global.ready then return end
 
     for key, run in pairs(QSF_Global.ensure().runs) do
@@ -271,7 +271,7 @@ function QSF_Global.bump(username, kind, x, y, z)
             local counted = 0
 
             for i, obj in ipairs(def.objectives) do
-                if obj.type == kind and (not x or QSF_Location.matchXY(x, y, z, obj.location)) then
+                if QSF_Location.takes(obj, kind, x, y, z, seen) then
                     counted = counted + QSF_add(run, i, obj.count, username, 1)
                 end
             end
