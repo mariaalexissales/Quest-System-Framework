@@ -26,6 +26,26 @@ function QSF_Verify.countItems(player, def)
     return counts
 end
 
+-- one at a time, so an inventory that turns out short says how far it got. returns how
+-- many went.
+function QSF_Verify.take(player, item, count)
+    local inventory = player:getInventory()
+    local taken = 0
+
+    for _ = 1, count do
+        local removed = inventory:RemoveOneOf(item, true)
+        if not removed then break end
+
+        if isServer() then
+            sendRemoveItemFromContainer(inventory, removed)
+        end
+
+        taken = taken + 1
+    end
+
+    return taken
+end
+
 -- the whole set is checked before anything is removed, so a short player keeps the lot.
 local function QSF_consume(player, def, counts)
     local wanted = {}
@@ -40,18 +60,10 @@ local function QSF_consume(player, def, counts)
         if (counts[item] or 0) < need then return false end
     end
 
-    local inventory = player:getInventory()
     for item, need in pairs(wanted) do
-        for _ = 1, need do
-            local removed = inventory:RemoveOneOf(item, true)
-            if not removed then
-                QSF.warn(tostring(player:getUsername()) .. ": could not take " .. item
-                    .. " for " .. def.key .. ", some may have been taken already")
-                break
-            end
-            if isServer() then
-                sendRemoveItemFromContainer(inventory, removed)
-            end
+        if QSF_Verify.take(player, item, need) < need then
+            QSF.warn(tostring(player:getUsername()) .. ": could not take " .. item
+                .. " for " .. def.key .. ", some may have been taken already")
         end
     end
 

@@ -159,7 +159,7 @@ function QSF_State.players()
     return out
 end
 
-local function QSF_playerByName(username)
+function QSF_State.playerByName(username)
     if not isServer() then return getPlayer() end
 
     for _, player in ipairs(QSF_State.players()) do
@@ -177,7 +177,7 @@ function QSF_State.sendSnapshot(player)
 end
 
 function QSF_State.push(username, key)
-    local player = QSF_playerByName(username)
+    local player = QSF_State.playerByName(username)
     if not player then return end
 
     local rec = QSF_State.record(username, key)
