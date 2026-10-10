@@ -269,17 +269,18 @@ function QSF_Defs.npc(key)
 end
 
 -- the order they are written in, which is the order somebody reading the file wants.
-local NPC_FIELDS = { "key", "name", "x", "y", "z", "outfit", "female", "skin", "facing", "greeting" }
+QSF_Defs.NPC_FIELDS = { "key", "name", "x", "y", "z", "outfit", "female", "skin", "facing", "greeting" }
 
 local PLACED_HEADER = "// written by the game whenever an admin places or removes an npc.\n"
     .. "// edits made here are kept. an entry the game cannot read is dropped the next time it writes.\n"
 
--- the npcs the game placed itself, sorted so the file does not reshuffle between writes.
-function QSF_Defs.placed()
+-- every npc, or only the ones the game placed itself. sorted, so the file does not
+-- reshuffle between writes and every client is handed the list in the same order.
+function QSF_Defs.npcList(placedOnly)
     local list = {}
 
     for _, npc in pairs(QSF_Defs.npcs) do
-        if npc.placed then list[#list + 1] = npc end
+        if npc.placed or not placedOnly then list[#list + 1] = npc end
     end
 
     table.sort(list, function(a, b) return a.key < b.key end)
@@ -312,12 +313,12 @@ function QSF_Defs.writePlaced(list)
 
     for index, npc in ipairs(list) do
         local entry = {}
-        for _, field in ipairs(NPC_FIELDS) do entry[field] = npc[field] end
+        for _, field in ipairs(QSF_Defs.NPC_FIELDS) do entry[field] = npc[field] end
         entries[index] = entry
     end
 
     return QSF_Defs.writeFile(QSF.NPC_FILE,
-        PLACED_HEADER .. QSF_Json.encode({ npcs = entries }, NPC_FIELDS) .. "\n")
+        PLACED_HEADER .. QSF_Json.encode({ npcs = entries }, QSF_Defs.NPC_FIELDS) .. "\n")
 end
 
 -- Reload goes straight to load(), so only a server start can seed.
