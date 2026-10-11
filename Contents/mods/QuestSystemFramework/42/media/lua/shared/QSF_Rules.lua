@@ -61,16 +61,74 @@ function QSF_Rules.atGiver(def, npcs, player)
     return QSF_Rules.inReach(player, npcs and npcs[def.giver])
 end
 
--- what one npc hands out, in the order the log would list it. ordered is the sorted quest
--- list either side already keeps.
-function QSF_Rules.npcQuests(npcKey, ordered)
-    local out = {}
+-- everything a quest asks of a player before it can be taken, in the order it is asked.
+-- given a list, each one goes into it with whether it is met. given none, the first one
+-- that is not met is the answer, as canAccept's reason and what goes with it.
+local function QSF_requirements(def, player, state, list)
+    local prereqs = def.prereqs or {}
 
-    for _, def in ipairs(ordered or {}) do
-        if def.giver == npcKey then out[#out + 1] = def end
+    for _, needed in ipairs(prereqs.quests or {}) do
+        local other = state and state[needed]
+        local met = other ~= nil and other.status == "done"
+
+        if list then
+            list[#list + 1] = { reason = "NeedQuest", detail = needed, met = met }
+        elseif not met then
+            return "NeedQuest", needed
+        end
     end
 
-    return out
+    -- the rest are about the character, and there is nothing to ask without one.
+    if not player then return nil end
+
+    local skills = list and {} or nil
+
+    for perkName, level in pairs(prereqs.skills or {}) do
+        local met = QSF_perkLevel(player, perkName) >= level
+
+        if skills then
+            skills[#skills + 1] = { reason = "NeedSkill", detail = perkName, extra = level, met = met }
+        elseif not met then
+            -- apart, so the client can swap in the name the character sheet uses.
+            return "NeedSkill", perkName, level
+        end
+    end
+
+    if skills then
+        -- pairs() hands them over in any order, and a list that reshuffles reads as broken.
+        table.sort(skills, function(a, b) return a.detail < b.detail end)
+        for _, entry in ipairs(skills) do list[#list + 1] = entry end
+    end
+
+    if prereqs.kills then
+        local met = player:getZombieKills() >= prereqs.kills
+
+        if list then
+            list[#list + 1] = { reason = "NeedKills", detail = prereqs.kills, met = met }
+        elseif not met then
+            return "NeedKills", prereqs.kills
+        end
+    end
+
+    if prereqs.daysSurvived then
+        local met = getGameTime():getDaysSurvived() >= prereqs.daysSurvived
+
+        if list then
+            list[#list + 1] = { reason = "NeedDays", detail = prereqs.daysSurvived, met = met }
+        elseif not met then
+            return "NeedDays", prereqs.daysSurvived
+        end
+    end
+
+    return nil
+end
+
+-- what a quest asks for, each with whether this player has it: the list the details show
+-- with a tick or a cross on every line. the same walk canAccept refuses by.
+function QSF_Rules.prereqList(def, player, state)
+    local list = {}
+    if def then QSF_requirements(def, player, state, list) end
+    return list
 end
 
 -- the client greys a row with this and the server authorises with it, so a greyed row and
@@ -100,31 +158,8 @@ function QSF_Rules.canAccept(def, rec, player, state)
         end
     end
 
-    local prereqs = def.prereqs or {}
-
-    for _, needed in ipairs(prereqs.quests or {}) do
-        local other = state and state[needed]
-        if not other or other.status ~= "done" then
-            return false, "NeedQuest", needed
-        end
-    end
-
-    if player then
-        for perkName, level in pairs(prereqs.skills or {}) do
-            if QSF_perkLevel(player, perkName) < level then
-                -- apart, so the client can swap in the name the character sheet uses.
-                return false, "NeedSkill", perkName, level
-            end
-        end
-
-        if prereqs.kills and player:getZombieKills() < prereqs.kills then
-            return false, "NeedKills", prereqs.kills
-        end
-
-        if prereqs.daysSurvived and getGameTime():getDaysSurvived() < prereqs.daysSurvived then
-            return false, "NeedDays", prereqs.daysSurvived
-        end
-    end
+    local reason, detail, extra = QSF_requirements(def, player, state)
+    if reason then return false, reason, detail, extra end
 
     return true
 end
@@ -200,32 +235,6 @@ function QSF_Rules.objectiveProgress(obj, index, rec, counts)
     return have, need, have >= need
 end
 
-function QSF_Rules.isComplete(def, rec, counts)
-    if not def or not rec then return false end
-
-    for i, obj in ipairs(def.objectives) do
-        local _, _, satisfied = QSF_Rules.objectiveProgress(obj, i, rec, counts)
-        if not satisfied then return false end
-    end
-
-    return true
-end
-
--- each objective weighs the same, so a quest is not dominated by its largest number.
-function QSF_Rules.overallProgress(def, rec, counts)
-    if not def or #def.objectives == 0 then return 0 end
-
-    local total = 0
-    for i, obj in ipairs(def.objectives) do
-        local have, need = QSF_Rules.objectiveProgress(obj, i, rec, counts)
-        if need > 0 then
-            total = total + math.min(1, have / need)
-        end
-    end
-
-    return total / #def.objectives
-end
-
 -- a global quest's counters are the server's, collect ones included: what has been handed
 -- over, not what anybody is carrying. run is its record. returns have, need, satisfied.
 function QSF_Rules.sharedProgress(obj, index, run)
@@ -236,27 +245,95 @@ function QSF_Rules.sharedProgress(obj, index, run)
     return have, need, have >= need
 end
 
-function QSF_Rules.sharedComplete(def, run)
-    if not def or not run then return false end
+-- the three below are asked of a player's own quest and of a global one alike. progress is
+-- whichever of the two above the quest keeps count with.
+local function QSF_allMet(def, rec, progress, counts)
+    if not def or not rec then return false end
 
     for i, obj in ipairs(def.objectives) do
-        local _, _, satisfied = QSF_Rules.sharedProgress(obj, i, run)
+        local _, _, satisfied = progress(obj, i, rec, counts)
         if not satisfied then return false end
     end
 
     return true
 end
 
-function QSF_Rules.sharedOverall(def, run)
+-- each objective weighs the same, so a quest is not dominated by its largest number.
+local function QSF_fraction(def, rec, progress, counts)
     if not def or #def.objectives == 0 then return 0 end
 
     local total = 0
     for i, obj in ipairs(def.objectives) do
-        local have, need = QSF_Rules.sharedProgress(obj, i, run)
-        total = total + math.min(1, have / need)
+        local have, need = progress(obj, i, rec, counts)
+        if need > 0 then
+            total = total + math.min(1, have / need)
+        end
     end
 
     return total / #def.objectives
+end
+
+-- what a row says beside a quest somebody is on: the counter itself when there is only
+-- the one, and otherwise how many of them are met.
+local function QSF_tally(def, rec, progress, counts)
+    if #def.objectives == 1 then
+        local have, need = progress(def.objectives[1], 1, rec, counts)
+        return have .. "/" .. need
+    end
+
+    local done = 0
+    for i, obj in ipairs(def.objectives) do
+        local _, _, satisfied = progress(obj, i, rec, counts)
+        if satisfied then done = done + 1 end
+    end
+
+    return done .. "/" .. #def.objectives
+end
+
+function QSF_Rules.isComplete(def, rec, counts)
+    return QSF_allMet(def, rec, QSF_Rules.objectiveProgress, counts)
+end
+
+function QSF_Rules.overallProgress(def, rec, counts)
+    return QSF_fraction(def, rec, QSF_Rules.objectiveProgress, counts)
+end
+
+function QSF_Rules.tally(def, rec, counts)
+    return QSF_tally(def, rec, QSF_Rules.objectiveProgress, counts)
+end
+
+function QSF_Rules.sharedComplete(def, run)
+    return QSF_allMet(def, run, QSF_Rules.sharedProgress)
+end
+
+function QSF_Rules.sharedOverall(def, run)
+    return QSF_fraction(def, run, QSF_Rules.sharedProgress)
+end
+
+function QSF_Rules.sharedTally(def, run)
+    return QSF_tally(def, run, QSF_Rules.sharedProgress)
+end
+
+-- one counter an objective, all at nothing. dense from 1: a hole in a kahlua array loses
+-- everything after it.
+function QSF_Rules.blankProgress(def)
+    local prog = {}
+    for i = 1, #def.objectives do prog[i] = 0 end
+    return prog
+end
+
+-- by the order somebody gave them, then by key. pairs() alone would reshuffle the list
+-- between openings, and hand every client a different one.
+function QSF_Rules.sorted(defs)
+    local ordered = {}
+    for _, def in pairs(defs) do ordered[#ordered + 1] = def end
+
+    table.sort(ordered, function(a, b)
+        if a.order ~= b.order then return a.order < b.order end
+        return a.key < b.key
+    end)
+
+    return ordered
 end
 
 -- what one player could hand over right now: toward every collect objective still short,
@@ -291,29 +368,18 @@ end
 function QSF_Rules.hasRewards(rewards)
     if not rewards then return false end
     if rewards.items and #rewards.items > 0 then return true end
+    if rewards.random then return true end
     return rewards.xp ~= nil and not table.isempty(rewards.xp)
 end
 
 -- the union across active quests, so the poll asks once per type not once per objective.
-function QSF_Rules.wantedItems(defs, state)
-    local wanted = {}
+-- state is a player's own records or the global runs, which say "active" the same way,
+-- and wanted is a set to add to when both are being asked about.
+function QSF_Rules.wantedItems(defs, state, wanted)
+    wanted = wanted or {}
 
     for key, rec in pairs(state or {}) do
         if rec.status == "active" then
-            local def = defs and defs[key]
-            for _, obj in ipairs(def and def.objectives or {}) do
-                if obj.type == "collect" then wanted[obj.item] = true end
-            end
-        end
-    end
-
-    return wanted
-end
-
--- and whatever the global quests still running would take, into the same set.
-function QSF_Rules.wantedShared(defs, runs, wanted)
-    for key, run in pairs(runs or {}) do
-        if run.status == "active" then
             local def = defs and defs[key]
             for _, obj in ipairs(def and def.objectives or {}) do
                 if obj.type == "collect" then wanted[obj.item] = true end

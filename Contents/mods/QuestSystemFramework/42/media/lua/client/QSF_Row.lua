@@ -29,8 +29,24 @@ function QSF_Row:new(x, y, width, height, panel)
     return o
 end
 
+-- what the row reads is measured and cut to fit here, once for each time it is handed a
+-- quest, rather than on every frame it is drawn. the list sets the width first.
 function QSF_Row:setRow(row)
     self.row = row
+    if not row then return end
+
+    local x = PAD + ACCENT
+    local counter = row.counter or ""
+    local counterWidth = counter ~= "" and getTextManager():MeasureStringX(UIFont.Small, counter) or 0
+    local limit = self.width - PAD - counterWidth - (counterWidth > 0 and PAD or 0)
+
+    self.shown = {
+        title = QSF_Theme.truncate(row.title or "?", limit - x, UIFont.Small),
+        counter = counter ~= "" and counter or nil,
+        counterX = self.width - PAD - counterWidth,
+        subtitle = row.subtitle and row.subtitle ~= ""
+            and QSF_Theme.truncate(row.subtitle, self.width - x - PAD, UIFont.Small) or nil,
+    }
 end
 
 function QSF_Row:isSelected()
@@ -67,32 +83,18 @@ function QSF_Row:render()
 
     self:drawRect(0, 0, ACCENT, self.height, 0.85, accent.r, accent.g, accent.b)
 
-    local titleColour = row.locked and QSF_Theme.STATES.disabled.text or nil
-    local tr = titleColour and titleColour[1] or QSF_Theme.COL_TITLE.r
-    local tg = titleColour and titleColour[2] or QSF_Theme.COL_TITLE.g
-    local tb = titleColour and titleColour[3] or QSF_Theme.COL_TITLE.b
-
+    local shown = self.shown
     local x = PAD + ACCENT
-    local counter = row.counter or ""
-    local counterWidth = counter ~= "" and getTextManager():MeasureStringX(UIFont.Small, counter) or 0
-    local limit = self.width - PAD - counterWidth - (counterWidth > 0 and PAD or 0)
 
-    local title = QSF_Theme.truncate(row.title or "?", limit - x, UIFont.Small)
-    self:drawText(title, x, LINE_ONE, tr, tg, tb, 1, UIFont.Small)
+    QSF_Theme.text(self, shown.title, x, LINE_ONE, row.locked and QSF_Theme.COL_DISABLED or QSF_Theme.COL_TITLE)
 
-    if counter ~= "" then
-        local col = row.locked and QSF_Theme.COL_DIM or QSF_Theme.COL_COUNT
-        QSF_Theme.text(self, counter, self.width - PAD - counterWidth, LINE_ONE, col)
+    if shown.counter then
+        QSF_Theme.text(self, shown.counter, shown.counterX, LINE_ONE,
+            row.locked and QSF_Theme.COL_DIM or QSF_Theme.COL_COUNT)
     end
 
-    local subtitle = row.subtitle
-    if subtitle and subtitle ~= "" then
-        local sub = QSF_Theme.truncate(subtitle, self.width - x - PAD, UIFont.Small)
-        local col = row.locked and QSF_Theme.STATES.disabled.text or nil
-        local sr = col and col[1] or QSF_Theme.COL_DIM.r
-        local sg = col and col[2] or QSF_Theme.COL_DIM.g
-        local sb = col and col[3] or QSF_Theme.COL_DIM.b
-        self:drawText(sub, x, LINE_TWO, sr, sg, sb, 1, UIFont.Small)
+    if shown.subtitle then
+        QSF_Theme.text(self, shown.subtitle, x, LINE_TWO, row.locked and QSF_Theme.COL_DISABLED or QSF_Theme.COL_DIM)
     end
 
     -- on anything else the bar would be stuck empty or full and say nothing.

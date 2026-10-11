@@ -5,6 +5,7 @@
 require "QSF_Core"
 require "QSF_ClientState"
 require "QSF_Detail"
+require "QSF_Theme"
 
 QSF_Notice = QSF_Notice or {}
 
@@ -37,31 +38,41 @@ local function QSF_refusal(args, def)
     return QSF_Detail.reasonText(args.reason, args.detail, args.extra) or getText("IGUI_QSF_Refused_Generic")
 end
 
+-- what each piece of news reads as, whether it is good news, and which part of it goes in
+-- the line. a quest of the player's own is named from their list. a global quest's title
+-- comes with the news: by the time somebody is paid for one it may have been taken out of
+-- the files, and their list with it.
+local NOTICES = {
+    accepted = { text = "IGUI_QSF_Notice_Accepted", good = true, names = "quest" },
+    completed = { text = "IGUI_QSF_Notice_Completed", good = true, names = "quest" },
+    reloaded = { text = "IGUI_QSF_Notice_Reloaded", good = true },
+    globalStarted = { text = "IGUI_QSF_Notice_GlobalStarted", good = true, names = "title" },
+    globalCompleted = { text = "IGUI_QSF_Notice_GlobalCompleted", good = true, names = "title" },
+    globalExpired = { text = "IGUI_QSF_Notice_GlobalExpired", good = false, names = "title" },
+    globalGave = { text = "IGUI_QSF_Notice_GlobalGave", good = true, names = "count" },
+    globalPaid = { text = "IGUI_QSF_Notice_GlobalPaid", good = true, names = "title" },
+    globalConsoled = { text = "IGUI_QSF_Notice_GlobalConsoled", good = true, names = "title" },
+}
+
 -- returns the line, and whether it is good news.
 local function QSF_wording(args)
     local def = args.key and QSF_ClientState.defs[args.key] or nil
-    local title = def and def.title or tostring(args.key)
 
-    if args.kind == "accepted" then return getText("IGUI_QSF_Notice_Accepted", title), true end
-    if args.kind == "completed" then return getText("IGUI_QSF_Notice_Completed", title), true end
-    if args.kind == "reloaded" then return getText("IGUI_QSF_Notice_Reloaded"), true end
     if args.kind == "refused" then return QSF_refusal(args, def), false end
 
-    -- a global quest's title comes with the news. by the time somebody is paid for one it
-    -- may have been taken out of the files, and their list with it.
-    local global = tostring(args.title)
+    local kind = args.kind
+    -- paid one of two things, depending on how it ended.
+    if kind == "globalPaid" and args.outcome ~= "completed" then kind = "globalConsoled" end
 
-    if args.kind == "globalStarted" then return getText("IGUI_QSF_Notice_GlobalStarted", global), true end
-    if args.kind == "globalCompleted" then return getText("IGUI_QSF_Notice_GlobalCompleted", global), true end
-    if args.kind == "globalExpired" then return getText("IGUI_QSF_Notice_GlobalExpired", global), false end
-    if args.kind == "globalGave" then return getText("IGUI_QSF_Notice_GlobalGave", tostring(args.count)), true end
+    local notice = NOTICES[kind]
+    if not notice then return nil end
 
-    if args.kind == "globalPaid" then
-        local key = args.outcome == "completed" and "IGUI_QSF_Notice_GlobalPaid" or "IGUI_QSF_Notice_GlobalConsoled"
-        return getText(key, global), true
-    end
+    if not notice.names then return getText(notice.text), notice.good end
 
-    return nil
+    local name = args[notice.names]
+    if notice.names == "quest" then name = def and def.title or args.key end
+
+    return getText(notice.text, tostring(name)), notice.good
 end
 
 -- over the player's head, the way the game says the inventory is full. a refusal used to
@@ -79,5 +90,14 @@ function QSF_Notice.show(args)
         HaloTextHelper.addGoodText(player, text)
     else
         HaloTextHelper.addBadText(player, text)
+    end
+
+    -- what a random reward came up as. it is already in the inventory, and nothing else
+    -- says which of the things it might have been it was.
+    if type(args.rolled) == "table" and #args.rolled > 0 then
+        local names = {}
+        for i, entry in ipairs(args.rolled) do names[i] = QSF_Theme.itemLabel(entry) end
+
+        HaloTextHelper.addGoodText(player, getText("IGUI_QSF_Notice_Rolled", table.concat(names, ", ")))
     end
 end

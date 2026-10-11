@@ -27,11 +27,13 @@ function QSF_Button:sizeToTitle(padding)
 end
 
 -- for a button that swaps between labels: sized for the widest of them, so the strip it
--- sits in never reflows mid-use. the labels are translation keys.
+-- sits in never reflows mid-use. the labels are as they will be shown. one with a number in
+-- it has to be given a number before it can be measured, and asking the game for it bare
+-- is an error in the log every time.
 function QSF_Button:sizeToWidest(padding, ...)
     local widest = 0
-    for _, key in ipairs({ ... }) do
-        widest = math.max(widest, getTextManager():MeasureStringX(self.font, getText(key)))
+    for _, label in ipairs({ ... }) do
+        widest = math.max(widest, getTextManager():MeasureStringX(self.font, label))
     end
 
     self:setWidth(widest + padding)

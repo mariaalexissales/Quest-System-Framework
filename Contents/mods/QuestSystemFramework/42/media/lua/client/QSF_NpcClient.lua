@@ -221,16 +221,13 @@ function QSF_NpcClient.say(key, text)
 end
 
 -- gold "?" beats gold "!" beats grey "?": something to hand in matters more than
-
 -- something new, and either matters more than a reminder. nil is nothing to say.
 function QSF_NpcClient.status(npcKey, player)
     local available, progress = false, false
-    local counts = QSF_ClientState.counts()
 
     -- the same answer the log greys a row with, so a locked or hidden quest raises no marker.
-    for _, def in ipairs(QSF_Rules.npcQuests(npcKey, QSF_ClientState.ordered)) do
-        local state = QSF_Rules.questState(def, QSF_ClientState.record(def.key), player,
-            QSF_ClientState.state, counts)
+    for _, def in ipairs(QSF_ClientState.questsOf(npcKey)) do
+        local state = QSF_ClientState.stateOf(def, player)
 
         if state == "turnin" then return "turnin" end
         if state == "progress" then progress = true end

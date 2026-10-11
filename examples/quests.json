@@ -82,7 +82,17 @@
       "rewards": {
         "items": [
           { "item": "Base.Money", "count": 200 }
-        ]
+        ],
+        "random": {
+          "label": "Whatever was still on the shelves",
+          "rolls": 2,
+          "options": [
+            { "item": "Base.TinnedBeans", "count": 3, "weight": 6 },
+            { "item": "Base.Bandage", "count": 4, "weight": 4 },
+            { "item": "Base.DuctTape", "count": 1, "weight": 2 },
+            { "item": "Base.HandTorch", "count": 1, "weight": 1 }
+          ]
+        }
       },
       "repeatable": { "cooldownHours": 72, "maxTurnins": 3 }
     },

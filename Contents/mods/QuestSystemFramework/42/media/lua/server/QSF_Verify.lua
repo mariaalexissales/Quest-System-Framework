@@ -7,6 +7,7 @@ require "QSF_Net"
 require "QSF_Rules"
 require "QSF_State"
 require "QSF_Rewards"
+require "QSF_Bridge"
 
 if not QSF.isAuthority() then return end
 
@@ -107,16 +108,19 @@ function QSF_Verify.claim(player, key, pick)
         return false, "Incomplete"
     end
 
-    QSF_Rewards.grant(player, def, pick)
+    local rolled = QSF_Rewards.grant(player, def, pick)
     QSF_State.complete(username, key)
     QSF_State.push(username, key)
 
-    -- from here rather than from the command, so the sweep below says so as well.
-    QSF_Net.toClient(player, "toast", { kind = "completed", key = key })
+    -- from here rather than from the command, so the sweep below says so as well. what a
+    -- random reward came up as goes with it: nothing else would tell them.
+    QSF_Net.toClient(player, "toast", { kind = "completed", key = key, rolled = rolled })
 
     QSF.log(username .. " completed " .. key)
-    return true
+    QSF_Bridge.emit("questCompleted", { username = username, key = key, title = def.title,
+        turnins = QSF_State.record(username, key).turnins, rolled = rolled })
 
+    return true
 end
 
 -- covers a client that crashed or never had the mod, and runs the same check claim does.

@@ -11,5 +11,6 @@
 -- behind. when the game first loads it the world is not up yet, and it does nothing.
 
 require "QSF_Global"
+require "QSF_Bridge"
 
-if QSF_Global and QSF_Global.ready then QSF_Global.export() end
+if QSF_Global and QSF_Global.ready then QSF_Bridge.export() end

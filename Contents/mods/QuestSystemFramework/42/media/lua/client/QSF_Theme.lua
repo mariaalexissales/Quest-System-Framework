@@ -4,7 +4,6 @@
 
 require "QSF_Rules"
 
-QSF = QSF or {}
 QSF_Theme = QSF_Theme or {}
 
 -- NeatUI's end caps take a tint and the body does not, so state is carried by tinting
@@ -35,6 +34,9 @@ QSF_Theme.COL_ACTIVE = { r = 0.98, g = 0.82, b = 0.45 }
 QSF_Theme.COL_DONE = { r = 0.48, g = 0.76, b = 0.48 }
 QSF_Theme.COL_LOCKED = { r = 0.45, g = 0.45, b = 0.45 }
 
+-- the grey a disabled button's label is, for text that is not on a button.
+QSF_Theme.COL_DISABLED = { r = 0.42, g = 0.42, b = 0.42 }
+
 local TEXTURES = nil
 
 function QSF_Theme.textures()
@@ -58,6 +60,60 @@ function QSF_Theme.attach(parent, child, anchors)
     child:instantiate()
     parent:addChild(child)
     return child
+end
+
+-- a window of the mod's own, put on the screen and in front of what is there.
+function QSF_Theme.open(window)
+    window:initialise()
+    window:instantiate()
+    window:addToUIManager()
+    window:bringToTop()
+    return window
+end
+
+-- what a small form that floats over the game looks like: the picker, and the npc form.
+function QSF_Theme.floating(panel)
+    panel.backgroundColor = { r = 0.05, g = 0.05, b = 0.05, a = 0.95 }
+    panel.borderColor = QSF_Theme.COL_FRAME
+    panel.moveWithMouse = true
+end
+
+-- Confirm and Cancel along the bottom of one of those, against the right edge with Cancel
+-- outermost. returns the two of them in that order.
+function QSF_Theme.okCancel(panel, y, height, pad, onOk, onCancel)
+    local cancel = QSF_Button:new(0, y, 10, height, getText("IGUI_QSF_Cancel"), panel, onCancel)
+    cancel:sizeToTitle(28)
+    cancel:setX(panel.width - pad - cancel:getWidth())
+    QSF_Theme.attach(panel, cancel)
+
+    local confirm = QSF_Button:new(0, y, 10, height, getText("IGUI_QSF_Confirm"), panel, onOk)
+    confirm:sizeToTitle(28)
+    confirm:setX(cancel:getX() - 6 - confirm:getWidth())
+    QSF_Theme.attach(panel, confirm)
+
+    return confirm, cancel
+end
+
+-- NeatUI's list, which builds only as many widgets as fit and hands them round as it
+-- scrolls, so a widget is whichever entry it was last given. create makes one and fill
+-- gives it an entry.
+function QSF_Theme.scrollList(parent, x, y, width, height, rowHeight, gap, create, fill)
+    local list = NIVirtualScrollView:new(x, y, width, height)
+    list:initialise()
+    list:instantiate()
+    -- setOnCreateItem after instantiate: createChildren already ran initializePool once
+    -- with no callback set and quietly did nothing.
+    list:setOnCreateItem(function()
+        local widget = create(list)
+        -- the pool calls initialise for us but not instantiate.
+        widget:instantiate()
+        return widget
+    end)
+    list:setOnUpdateItem(fill)
+    list:setConfig(rowHeight, gap)
+    parent:addChild(list)
+
+    return list
 end
 
 -- text in one of the colours above. small, unless it says otherwise.
@@ -98,6 +154,13 @@ function QSF_Theme.confirm(text, target, callback, playerNum, param)
     modal:bringToTop()
 
     return modal
+end
+
+-- "Nails x20", or only the name when there is the one of it.
+function QSF_Theme.itemLabel(entry)
+    local name = QSF_Theme.itemName(entry.item)
+    if entry.count > 1 then return name .. " x" .. entry.count end
+    return name
 end
 
 -- getItemDisplayName is empty for a type the game does not know, and the full type is more

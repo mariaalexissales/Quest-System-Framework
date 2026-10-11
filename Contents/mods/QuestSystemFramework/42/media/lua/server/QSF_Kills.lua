@@ -18,9 +18,13 @@ local MAX_PER_FLUSH = 40
 function QSF_Kills.bump(username, kind, x, y, z)
     if not username then return end
 
+    -- one kill is held up against every objective it might count for, and what is at the
+    -- spot it happened on is the same answer for all of them.
+    local seen = {}
+
     -- the server's own quests count the same thing. looked up at call time: nothing here
     -- needs it to have loaded first.
-    if QSF_Global then QSF_Global.bump(username, kind, x, y, z) end
+    if QSF_Global then QSF_Global.bump(username, kind, x, y, z, seen) end
 
     local quests = QSF_State.forPlayer(username)
     if not quests then return end
@@ -33,7 +37,7 @@ function QSF_Kills.bump(username, kind, x, y, z)
 
             if def then
                 for i, obj in ipairs(def.objectives) do
-                    if obj.type == kind and (not x or QSF_Location.matchXY(x, y, z, obj.location)) then
+                    if QSF_Location.takes(obj, kind, x, y, z, seen) then
                         local justFinished = QSF_State.addKill(username, key, i, obj.count)
                         -- a counter hitting its target skips the send throttle.
                         QSF_State.markDirty(username, key, justFinished)
