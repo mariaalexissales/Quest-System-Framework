@@ -151,6 +151,9 @@ end
 function QSF_State.players()
     if not isServer() then return { getPlayer() } end
 
+    -- asking who is online before the network is up throws.
+    if not QSF_Net.up then return {} end
+
     local out = {}
     local online = getOnlinePlayers()
     for i = 0, online:size() - 1 do out[#out + 1] = online:get(i) end
