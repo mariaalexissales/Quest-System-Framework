@@ -6,6 +6,9 @@ require "QSF_Core"
 
 QSF_Net = QSF_Net or {}
 
+-- a dedicated server's network, which is not there until the server has started.
+QSF_Net.up = QSF_Net.up or false
+
 -- looked up at call time: shared/ loads before client/ and server/, so neither dispatcher
 -- exists yet when this file runs.
 local function QSF_serverHandler(command)
@@ -57,9 +60,13 @@ function QSF_Net.toAll(command, args)
     args = args or {}
 
     if isServer() then
-        sendServerCommand(QSF.MODULE, command, args)
+        -- global mod data is ready before the network is, and sending to everybody then
+        -- throws. nobody is on yet, and whoever joins is sent the lot.
+        if QSF_Net.up then sendServerCommand(QSF.MODULE, command, args) end
         return
     end
 
     QSF_deliver(command, args)
 end
+
+Events.OnServerStarted.Add(function() QSF_Net.up = true end)
