@@ -23,6 +23,12 @@ QSF_ClientState.revision = 0
 
 QSF_ClientState.lastToast = nil
 
+-- on a client the hello is said again every few seconds until the server answers it.
+local HELLO_RETRY_MS = 5000
+
+-- when to say it next, and nil once it has been answered.
+local helloAt = nil
+
 local function QSF_touch()
     QSF_ClientState.revision = QSF_ClientState.revision + 1
 end
@@ -90,6 +96,7 @@ end
 function handlers.state(args)
     QSF_ClientState.state = (args and args.quests) or {}
     QSF_ClientState.ready = true
+    helloAt = nil
     QSF_touch()
 end
 
@@ -215,8 +222,23 @@ end
 
 Events.OnServerCommand.Add(QSF_ClientState.onCommand)
 
--- OnCreatePlayer, not OnGameStart: the handshake needs a player on both ends.
+-- OnCreatePlayer, not OnGameStart: the handshake needs a player on both ends. singleplayer
+-- says hello there and then. a client joining a server is still loading when it fires, and
+-- anything sent before its first tick in game never leaves the machine, so it waits for one.
 Events.OnCreatePlayer.Add(function(playerNum)
     if playerNum ~= 0 then return end
+
+    if QSF.hasRemoteServer() then
+        helloAt = 0
+        return
+    end
+
+    QSF_Net.toServer("hello", {})
+end)
+
+Events.OnTick.Add(function()
+    if not helloAt or getTimestampMs() < helloAt then return end
+
+    helloAt = getTimestampMs() + HELLO_RETRY_MS
     QSF_Net.toServer("hello", {})
 end)
