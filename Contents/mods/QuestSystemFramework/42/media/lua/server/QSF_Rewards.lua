@@ -91,9 +91,11 @@ function QSF_Rewards.grant(player, def, pick)
         QSF_giveEntry(player, entry, def)
     end
 
+    -- the global addXp, not getXp():AddXP: that one does nothing unless the player is local,
+    -- which on a dedicated server they never are. addXp grants it there and sends it on.
     for perkName, amount in pairs(rewards.xp or {}) do
         local perk = QSF_Rules.perk(perkName)
-        if perk then player:getXp():AddXP(perk, amount) end
+        if perk then addXp(player, perk, amount) end
     end
 
     return rolled
