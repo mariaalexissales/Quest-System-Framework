@@ -239,6 +239,23 @@ function QSF_NpcClient.status(npcKey, player)
     return nil
 end
 
+-- the same, for only what the player has already taken: what the map marks. the quests come
+-- back too, in log order, for the map to name. nil is nothing taken here.
+function QSF_NpcClient.accepted(npcKey, player)
+    local look, defs = nil, {}
+
+    for _, def in ipairs(QSF_ClientState.questsOf(npcKey)) do
+        local state = QSF_ClientState.stateOf(def, player)
+
+        if state == "turnin" or state == "progress" then
+            defs[#defs + 1] = def
+            if look ~= "turnin" then look = state end
+        end
+    end
+
+    return look, defs
+end
+
 Events.OnZombieUpdate.Add(QSF_onZombieUpdate)
 
 -- fired before the engine looks at its own avoid flag, so the swing is thrown away whole:
